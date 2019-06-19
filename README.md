@@ -89,10 +89,65 @@ struct in6_addr
 
 <h2 id="3">3. Linux ip地址转换函数</h2>
 
-下面3个函数可用于点分十进制字符串表示的IPv4地址和用网络字节序整数表示的IPv4地址间转换(#include<arpa/inet.h>):
+* 下面3个函数可用于点分十进制字符串表示的IPv4地址和用网络字节序整数表示的IPv4地址间转换(#include<arpa/inet.h>):
 1. in_addr_t inet_addr(const char* strptr);
 inet_addr： 将点分十进制字符串表示的IPv4地址转化为网络字节序整数表示IPv4地址，它失败时返回INADDR_NONE
 2. int inet_aton(const char* cp, struct in_addr* inp);
 inet_aton: 和inet_addr功能一样，但是将转化结果存储于参数inp指向的地址结构中，成功返回1，失败返回0
 3. char* inet_ntoa(struct in_addr in);
 inet_ntoa将用网络字节序整数表示的IPv4地址转化为用点分十进制字符串表示的IPv4地址。（它是一个不可重入函数）
+
+* 下面的函数也能完成和前面3个函数同样的功能，并且它们同时适用于IPv4地址和IPv6地址（#include<arpa/inet.h>）：
+1. int inet_pton(int af, const char* src, void* dst);
+将用字符串表示的IP地址src(用点分十进制字符串表示的IPv4地址或用十六进制字符串表示的IPv6地址)转成用网络字节序整数表示的IP地址，并把转换结果存储于dst指向的内存中。
+af表示地址族。
+2. const char* inet_ntop(int af, const void* src, char* dst, sockeln_t cnt);
+进行相反的转换，前三个参数的含义与inet_pton的参数相同，最后一个参数cnt指定目标存储单元的大小。下面的两个宏能帮助我们指定这个大小（分别用于IPv4和IPv6）
+```
+#include <netinet/in.h>
+#define INET_ADDRSTREN 16
+#define INET6_ADDRSTREN 46
+```
+
+<h2 id="4">4.Linux socket API</h2>
+
+UNIX/Linux的一个哲学：所有东西都是文件。socket也不例外，它就是可读，可写，可控制，可关闭的文件描述符。
+
+```
+#include<unistd.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+```
+
+/*创建套接字*/
+1. int socket(int domain, int type, int protocol);
+domain参数:告诉系统使用哪个底层协议族。 IPv4（PE_INET）, IPv6(PE_INET6), UNIX本地域协议(PE_UNIX)
+type: 指定服务类型。服务类型主要有SOCK_STREAM(流服务)，SOCK_UGRAM(数服务)，SOCK_DGRAM(报服务) 还可与上 SOCK_NONBLOCK(非阻塞)， SOCK_CLOEXEC(用fork调用创建子进程时在子进程中关闭该socket)。也可用fcntl来设置
+protocol： 在前两个参数构成的协议集合下，再选择一个具体的协议。不过这个值通常都是唯一的。默认设置为0
+
+/*绑定套接字*/
+2. int bind(int sockfd, const struct sockaddr* my_addr, socklen_t addrlen);
+将my_addr所指的socket地址分配给未命名的sockfd文件描述符，addrlen参数指该socket地址长度。
+成功返回0
+失败返回-1并设置errno
+
+/*监听socket*/
+int listen(int sockfd, int backlog);
+sockfd 指定被监听的socket
+backlog ：内核监听队列的最大长度，监听队列的长度如果超过backlog，服务器将不受理新的客户连接。
+backlog参数是指所有处于半连接状态(SYN_RCVD)和完全连接状态(ESTABLISHED)的socket上限，处于半连接状态的socket的上限则由/proc/sys/net/ipv4/tcp_max_syn_backlog内核参数定义。
+
+/*接受连接*/
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+sockfd 指定接受连接的socket。
+addr 参数用来获取被接受连接的远端socket地址。该socket地址的长度有addrlen参数指出。accept成功时返回一个新的连接socket，该socket唯一标识了接受的这个连接，服务器可以通过读写该socket来与被接受连接对应的客户端通信。accept失败时返回-1并设置errno。
+
+
+/*发起连接*/
+int connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen);
+sockfd socket创建的套接字参数。
+serv_addr 是服务器监听的socket地址
+addrlen serv_addr地址的长度
+
+/*关闭连接*/
+int close(int fd);
