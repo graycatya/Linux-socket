@@ -168,3 +168,70 @@ addrlen serv_addr地址的长度
 sockfd 是待关闭的socket。
 howto参数决定了shutdown的行为。
 ![howto参数](./img/howto.png)
+
+* 数据读写
+
+对于文件的读写操作read和write同样适用于socket。但是socket编程接口提供了几个专门用于socket数据读写的系统调用，它们增加了对数据读写的控制：
+
+1. ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+
+recv : 读取sockfd数据。
+buf和len参数分别指定读缓冲区的位置和大小。
+flags 通常设置为0/
+recv成功时返回实际读取到的数据长度， recv出错时返回-1并设置errno
+
+2. ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+
+send ： 往sockfd上写入数据。
+buf和len参数分别指定写缓冲区的位置和大小。
+send成功时返回实际读取到的数据长度， send出错时返回-1并设置errno
+
+* UDP数据读写
+
+1. ssize_t recvfrom(int sockfd, void* buf, size_t len, int flags, struct sockaddr* src_addr, socklen_t* addrlen);
+
+2. ssize_t sendto(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen);
+
+recvfrom于sendto 往sockfd读取和写入数据。
+src_addr : 发送端地址。
+dest_addr : 接收端地址。
+addrlen ： 地址长度。
+
+把后面两个参数设为NULL，也可用于TCP通信。
+
+
+* 通用数据读写
+
+1. ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags);
+2. ssize_t sendmsg(int sockfd, struct msghdr* msg, int flags);
+
+sockfd : 指定被操作的目标socket。
+
+3. msghdr结构体
+
+```
+struct msghdr
+{
+    void* msg_name;  /*socket 地址*/
+    socklen_t msg_namelen; /*socket地址的长度*/
+    struct lovec* msg_lov; /*分散的内存块*/
+    int msg_iovlen; /*分散的内存块数量*/
+    void* msg_control; /*指向辅助数据的起始位置*/
+    socklen_t msg_controllen;   /*辅助数据的大小*/
+    int msg_flags; /*复制函数中的flags参数，并在调用过程中更新*/
+};
+//msg_name 成员指向一个socket地址结构体变量，它指定通信对方socket地址。对于面向连接的TCP，必须设置为NULL
+struct lovec
+{
+    void *lov_base; /*内存起始地址*/
+    size_t lov_len; /*这块内存的长度*/
+};
+```
+
+* 带外数据
+
+1. int sockatmark(int sockfd);
+
+此时可以利用带MSG_OOB标志的recv调用来接收带外数据。
+
+![flags参数](./img/flags.png)
