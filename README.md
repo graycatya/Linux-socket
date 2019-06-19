@@ -119,35 +119,52 @@ UNIX/Linux的一个哲学：所有东西都是文件。socket也不例外，它�
 #include<sys/socket.h>
 ```
 
-/*创建套接字*/
+* 创建套接字
+
 1. int socket(int domain, int type, int protocol);
+
 domain参数:告诉系统使用哪个底层协议族。 IPv4（PE_INET）, IPv6(PE_INET6), UNIX本地域协议(PE_UNIX)
 type: 指定服务类型。服务类型主要有SOCK_STREAM(流服务)，SOCK_UGRAM(数服务)，SOCK_DGRAM(报服务) 还可与上 SOCK_NONBLOCK(非阻塞)， SOCK_CLOEXEC(用fork调用创建子进程时在子进程中关闭该socket)。也可用fcntl来设置
 protocol： 在前两个参数构成的协议集合下，再选择一个具体的协议。不过这个值通常都是唯一的。默认设置为0
 
-/*绑定套接字*/
-2. int bind(int sockfd, const struct sockaddr* my_addr, socklen_t addrlen);
+* 绑定套接字
+
+1. int bind(int sockfd, const struct sockaddr* my_addr, socklen_t addrlen);
+
 将my_addr所指的socket地址分配给未命名的sockfd文件描述符，addrlen参数指该socket地址长度。
 成功返回0
 失败返回-1并设置errno
 
-/*监听socket*/
-int listen(int sockfd, int backlog);
+* 监听socket
+
+1. int listen(int sockfd, int backlog);
+
 sockfd 指定被监听的socket
 backlog ：内核监听队列的最大长度，监听队列的长度如果超过backlog，服务器将不受理新的客户连接。
 backlog参数是指所有处于半连接状态(SYN_RCVD)和完全连接状态(ESTABLISHED)的socket上限，处于半连接状态的socket的上限则由/proc/sys/net/ipv4/tcp_max_syn_backlog内核参数定义。
 
-/*接受连接*/
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
-sockfd 指定接受连接的socket。
-addr 参数用来获取被接受连接的远端socket地址。该socket地址的长度有addrlen参数指出。accept成功时返回一个新的连接socket，该socket唯一标识了接受的这个连接，服务器可以通过读写该socket来与被接受连接对应的客户端通信。accept失败时返回-1并设置errno。
+* 接受连接
+
+1. int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+
+    1. sockfd 指定接受连接的socket。
+
+    2. addr 参数用来获取被接受连接的远端socket地址。该socket地址的长度有addrlen参数指出。accept成功时返回一个新的连接socket，该socket唯一标识了接受的这个连接，服务器可以通过读写该socket来与被接受连接对应的客户端通信。accept失败时返回-1并设置errno。
 
 
-/*发起连接*/
-int connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen);
+* 发起连接
+
+1. int connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen);
+
 sockfd socket创建的套接字参数。
 serv_addr 是服务器监听的socket地址
 addrlen serv_addr地址的长度
 
-/*关闭连接*/
-int close(int fd);
+* 关闭连接
+
+1. int close(int fd);
+2. int shutdown(int sockfd, int howto);
+
+sockfd 是待关闭的socket。
+howto参数决定了shutdown的行为。
+![howto参数](./img/howto.png)
