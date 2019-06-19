@@ -88,3 +88,11 @@ struct in6_addr
 所有专用的socket地址(以及sockaddr_storage)类型的变量在实际使用时都需要转化为通用socket地址类型sockaddr。
 
 <h2 id="3">3. Linux ip地址转换函数</h2>
+
+下面3个函数可用于点分十进制字符串表示的IPv4地址和用网络字节序整数表示的IPv4地址间转换(#include<arpa/inet.h>):
+1. in_addr_t inet_addr(const char* strptr);
+inet_addr： 将点分十进制字符串表示的IPv4地址转化为网络字节序整数表示IPv4地址，它失败时返回INADDR_NONE
+2. int inet_aton(const char* cp, struct in_addr* inp);
+inet_aton: 和inet_addr功能一样，但是将转化结果存储于参数inp指向的地址结构中，成功返回1，失败返回0
+3. char* inet_ntoa(struct in_addr in);
+inet_ntoa将用网络字节序整数表示的IPv4地址转化为用点分十进制字符串表示的IPv4地址。（它是一个不可重入函数）
