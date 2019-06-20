@@ -9,9 +9,13 @@
 * Linux 提供4个函数来完成主机字节序和网络字节序之间的转换(#include<netinet/in.h>)
 
 1. unsigned long int htonl(unsigned long int hostlong); //主机转网络字节序  ,转4字节 ,小端转大端
+
 2. unsigned short int htons(unsigned short int hostshort); //主机转网络字节序  转2字节,端口大转小
+
 3. unsigned long int ntohl(unsigned long int netlong);  //网络转主机字节序  转4字节，大端转小端
+
 4. unsigned short int ntohs(unsigned short int netshort);   //网络转主机字节序  转2字节,端口大转小
+
 长整型一般用来转换IP地址，短整型一般用来转换端口号。
 
 <h2 id="2">2. Linux socket地址 结构体</h2>
@@ -46,6 +50,7 @@ __ss_align成员是内存对齐的。
 
 
 * 专用socket
+
 UNIX本地域协议族使用如下专用socket地址结构体(#include<sys/un.h>)：
 
 ```
@@ -90,19 +95,28 @@ struct in6_addr
 <h2 id="3">3. Linux ip地址转换函数</h2>
 
 * 下面3个函数可用于点分十进制字符串表示的IPv4地址和用网络字节序整数表示的IPv4地址间转换(#include<arpa/inet.h>):
+
 1. in_addr_t inet_addr(const char* strptr);
+
 inet_addr： 将点分十进制字符串表示的IPv4地址转化为网络字节序整数表示IPv4地址，它失败时返回INADDR_NONE
+
 2. int inet_aton(const char* cp, struct in_addr* inp);
+
 inet_aton: 和inet_addr功能一样，但是将转化结果存储于参数inp指向的地址结构中，成功返回1，失败返回0
 3. char* inet_ntoa(struct in_addr in);
+
 inet_ntoa将用网络字节序整数表示的IPv4地址转化为用点分十进制字符串表示的IPv4地址。（它是一个不可重入函数）
 
 * 下面的函数也能完成和前面3个函数同样的功能，并且它们同时适用于IPv4地址和IPv6地址（#include<arpa/inet.h>）：
 1. int inet_pton(int af, const char* src, void* dst);
+
 将用字符串表示的IP地址src(用点分十进制字符串表示的IPv4地址或用十六进制字符串表示的IPv6地址)转成用网络字节序整数表示的IP地址，并把转换结果存储于dst指向的内存中。
 af表示地址族。
+
 2. const char* inet_ntop(int af, const void* src, char* dst, sockeln_t cnt);
+
 进行相反的转换，前三个参数的含义与inet_pton的参数相同，最后一个参数cnt指定目标存储单元的大小。下面的两个宏能帮助我们指定这个大小（分别用于IPv4和IPv6）
+
 ```
 #include <netinet/in.h>
 #define INET_ADDRSTREN 16
@@ -124,7 +138,9 @@ UNIX/Linux的一个哲学：所有东西都是文件。socket也不例外，它�
 1. int socket(int domain, int type, int protocol);
 
 domain参数:告诉系统使用哪个底层协议族。 IPv4（PE_INET）, IPv6(PE_INET6), UNIX本地域协议(PE_UNIX)
+
 type: 指定服务类型。服务类型主要有SOCK_STREAM(流服务)，SOCK_UGRAM(数服务)，SOCK_DGRAM(报服务) 还可与上 SOCK_NONBLOCK(非阻塞)， SOCK_CLOEXEC(用fork调用创建子进程时在子进程中关闭该socket)。也可用fcntl来设置
+
 protocol： 在前两个参数构成的协议集合下，再选择一个具体的协议。不过这个值通常都是唯一的。默认设置为0
 
 * 绑定套接字
@@ -140,7 +156,9 @@ protocol： 在前两个参数构成的协议集合下，再选择一个具体�
 1. int listen(int sockfd, int backlog);
 
 sockfd 指定被监听的socket
+
 backlog ：内核监听队列的最大长度，监听队列的长度如果超过backlog，服务器将不受理新的客户连接。
+
 backlog参数是指所有处于半连接状态(SYN_RCVD)和完全连接状态(ESTABLISHED)的socket上限，处于半连接状态的socket的上限则由/proc/sys/net/ipv4/tcp_max_syn_backlog内核参数定义。
 
 * 接受连接
@@ -157,7 +175,9 @@ backlog参数是指所有处于半连接状态(SYN_RCVD)和完全连接状态(ES
 1. int connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen);
 
 sockfd socket创建的套接字参数。
+
 serv_addr 是服务器监听的socket地址
+
 addrlen serv_addr地址的长度
 
 * 关闭连接
@@ -176,14 +196,19 @@ howto参数决定了shutdown的行为。
 1. ssize_t recv(int sockfd, void *buf, size_t len, int flags);
 
 recv : 读取sockfd数据。
+
 buf和len参数分别指定读缓冲区的位置和大小。
+
 flags 通常设置为0/
+
 recv成功时返回实际读取到的数据长度， recv出错时返回-1并设置errno
 
 2. ssize_t send(int sockfd, const void *buf, size_t len, int flags);
 
 send ： 往sockfd上写入数据。
+
 buf和len参数分别指定写缓冲区的位置和大小。
+
 send成功时返回实际读取到的数据长度， send出错时返回-1并设置errno
 
 * UDP数据读写
@@ -312,8 +337,11 @@ struct servent
 getaddrinfo: 既能通过主机名获得IP地址，也能通过服务名获得端口号。它是否可重入取决于其内部使用的是否是可重入版。
 
 hostname： 接受主机名。 IPv4，IPv6
+
 service： 接收服务名，也可以接收字符串表示的十进制端口号
+
 hints:  应用程序给getaddrinfo的一个提示，以对getaddrinfo的输出更精确的控制。 该参数可以设置为NULL，表示getaddrinfo反馈任何可用结果。
+
 result： 指向一个链表，该链表用于存储getaddrinfo反馈的结果。
 
 6. void freeaddrinfo(struct addrinfo* ress);
@@ -339,3 +367,17 @@ struct addrinfo
 
 ![ai_flags参数](./img/ai_flags.png)
 
+7. int getnameinfo(const struct sockaddr* sockaddr, socklen_t addrlen, char* host, socklen_t hostlen, char* serv, socklen_t servlen, int flags);
+
+getnameinfo: 既能通过socket地址同时获得以字符串表示的主机名，服务名。它是否可重入取决于其内部使用的是否是可重入版。
+
+host： 主机名
+serv： 服务名
+
+![flags参数](./img/flags0.png)
+
+8. const char* gai_strerror(int error);
+
+将错误码转换为字符串
+
+![errno参数](./img/erro.png)
