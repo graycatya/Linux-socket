@@ -228,10 +228,32 @@ struct lovec
 };
 ```
 
+![flags参数](./img/flags.png)
+
+
 * 带外数据
 
 1. int sockatmark(int sockfd);
 
 此时可以利用带MSG_OOB标志的recv调用来接收带外数据。
 
-![flags参数](./img/flags.png)
+* 地址信息函数
+
+1. int getsockname(int sockfd, struct sockaddr* address, socklen_t* address_len);
+
+getsockname : 获取对应本端的地址信息
+
+2. int getpeername(int sockfd, struct sockaddr* address, socklen_t* address_len);
+
+getpeername : 获取对应远端地址信息
+
+* socket选择 文件描述符属性
+
+1. int getsockopt(int sockfd, int level, int option_name, void* option_value, socklen_t* restrict option_len);
+
+2. int setsockopt(int sockfd, int level, int option_name, const void* option_value, socklen_t option_len);
+
+sockfd : 指定被操作的目标socket，level参数指定要操作那个协议的选项
+
+
+![option_name参数](./img/socketset.png)
