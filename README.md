@@ -63,7 +63,7 @@ struct sockaddr_in
 {
     sa_family_t sin_family; /*地址族：AF_INET*/
     u_int16_t sin_port; /*端口号，要用网络字节序表示*/
-    struct in_addr sinaddr; /*IPv4 地址结构，*/
+    struct in_addr sin_addr; /*IPv4 地址结构，*/
 }
 struct in_addr
 {
@@ -253,7 +253,89 @@ getpeername : 获取对应远端地址信息
 
 2. int setsockopt(int sockfd, int level, int option_name, const void* option_value, socklen_t option_len);
 
-sockfd : 指定被操作的目标socket，level参数指定要操作那个协议的选项
+sockfd : 指定被操作的目标socket，level参数指定要操作那个协议的选项如果想要在套接字级别上设置选项，就必须把level设置为SOL_SOCKET.
 
 
 ![option_name参数](./img/socketset.png)
+
+* 网络信息 API (#include<netdb.h>)
+
+socket地址两个要素，即IP地址和端口号，都是用数值表示的。这不便于记忆，也不便于扩展(比如从IPv4转移到IPv6).
+
+1. struct hostent* gethostbyname(const char* name);
+
+gethostbyname: 根据主机名称获取主机的完整信息。
+通常先在本地的/etc/hosts配置文件中查找主机，如果没有找到，再去访问DNS服务器。
+
+2. struct hostent* gethostbyaddr(const void* addr, size_t len, int type);
+
+gethostbyaddr: 根据IP地址获取主机的完整信息。
+type: 指定addr所指IP地址的类型，其合法取值包括AF_INET,AF_INET6.
+
+这两个函数返回的都是hostent结构体类型的指针：
+
+```
+struct hostent
+{
+    char* h_name;   /*主机名*/
+    char** h_aliases;   /*主机别名列表，可能有多个*/
+    int h_addrtype; /*地址类型(地址族)*/
+    int h_length;   /*地址长度*/
+    char** h_addr_list; /*按网络字节序列出的主机地址列表*/
+};
+```
+
+3. struct servent* getservbyname(const char* name, const char* proto);
+
+name : 目标服务的名字
+
+
+4. struct servent* getservbyport(int port, const char* proto);
+
+port : 目标服务对应的端口号
+
+proto ： 指定服务类型，给它传递"tcp","udp", NULL则表示获取所有类型的服务
+
+```
+struct servent
+{
+    char* s_name;   /*服务名称*/
+    char** s_aliases;   /*服务的别名列表，可能有多个*/
+    int s_port; /*端口号*/
+    char* s_proto;  /* 服务类型，通常是tcp或者udp */
+};
+```
+注意：上面4个函数都是不可重入的。即非线程安全的。如需使用可重入版本，需要在原函数名尾部加上_r(re_entrant).
+
+5. int getaddrinfo(const char* hostname, const char* service, const struct addrinfo* hints, struct addrinfo** result);
+
+getaddrinfo: 既能通过主机名获得IP地址，也能通过服务名获得端口号。它是否可重入取决于其内部使用的是否是可重入版。
+
+hostname： 接受主机名。 IPv4，IPv6
+service： 接收服务名，也可以接收字符串表示的十进制端口号
+hints:  应用程序给getaddrinfo的一个提示，以对getaddrinfo的输出更精确的控制。 该参数可以设置为NULL，表示getaddrinfo反馈任何可用结果。
+result： 指向一个链表，该链表用于存储getaddrinfo反馈的结果。
+
+6. void freeaddrinfo(struct addrinfo* ress);
+释放addrinfo 这块空间。
+
+getaddrinfo反馈的结果为addrinfo结构体类型对象：
+
+```
+struct addrinfo
+{
+    int ai_flags;
+    int ai_family;  /*地址族*/
+    int ai_socktype;    /*服务类型 SOCK_STREAM,SOCK_DGRAM*/
+    int ai_protocol;    /*指具体的网络协议，其含义和socket系统调用的第三个参数相同，通常为0*/
+    socklen_t   ai_addrlen; /*socket地址ai_addr的长度*/
+    char*   ai_canonname;   /*主机的别名*/
+    struct sockaddr* ai_addr;   /*指向socket地址*/
+    struct addrinfo* ai_next;   /*指向下一个sockinfo结构的对象*/
+};
+```
+
+当我们使用hints参数的时候，可以设置其ai_flags, ai_family, ai_socktype和ai_protocol。其它字段必须设置为NULL。
+
+![ai_flags参数](./img/ai_flags.png)
+
