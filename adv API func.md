@@ -108,5 +108,22 @@ flags: 则控制数据如何移动。
 ssize_t tee(int fd_in, int fd_out, size_t len, unsigned int flags);
 ```
 
+tee: 参数的含义与splice相同（但fd_in和fd_out必须都是管道文件描述符）
+
 
 * 用于控制I/O行为和属性，包括fcntl函数
+
+```
+#include <fcntl.h>
+int fcntl(int fd, int cmd, ...);
+```
+
+fcntl:提供对文件描述符的各种控制操作。
+
+fd： 被操作的文件描述符。
+
+cmd: 指定执行何种类型操作。
+
+arg: 可选参数
+
+![fcntl操作参数](./img/fcntl.png)
