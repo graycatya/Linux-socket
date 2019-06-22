@@ -97,10 +97,13 @@ fds: 是一个pollfd结构类型的数组，它指定所有我们感兴趣的文
 struct pollfd
 {
     int fd; /*文件描述符*/
-    short events;   /*注册的事件*/
+    short events;   /*注册的事件 - 事件可或*/
     short revents;  /*实际发生的事件，由内核填充*/
 };
 ```
 
 ![events](./img/poll0.png)
 ![events](./img/poll1.png)
+
+要使用POLLRDHUP事件时，需要在代码最开始处定义_GNU_SOURCE.
+
