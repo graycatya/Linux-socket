@@ -83,3 +83,24 @@ select成功时返回就绪(可读，可写和异常)文件描述符的总数。
 <h2 id="2">2. poll系统调用</h2>
 
 * poll系统调用
+
+poll系统调用和select类似，也是在指定时间内轮询一定数量的文件描述符，以测试其中是否有就绪者。
+
+```
+#include <poll.h>
+int poll(struct pollfd* fds, nfds_t nfds, int timeout);
+```
+
+fds: 是一个pollfd结构类型的数组，它指定所有我们感兴趣的文件描述符上发生的可读，可写和异常等事件。
+
+```
+struct pollfd
+{
+    int fd; /*文件描述符*/
+    short events;   /*注册的事件*/
+    short revents;  /*实际发生的事件，由内核填充*/
+};
+```
+
+![events](./img/poll0.png)
+![events](./img/poll1.png)
