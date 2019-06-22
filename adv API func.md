@@ -127,3 +127,4 @@ cmd: 指定执行何种类型操作。
 arg: 可选参数
 
 ![fcntl操作参数](./img/fcntl.png)
+![fcntl操作参数](./img/fcntl1.png)
