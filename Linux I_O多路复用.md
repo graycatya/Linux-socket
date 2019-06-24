@@ -107,3 +107,64 @@ struct pollfd
 
 要使用POLLRDHUP事件时，需要在代码最开始处定义_GNU_SOURCE.
 
+nfds: 指定被监听事件集合fds的大小。(typedef unsigned long int nfds_t)
+
+timeout: 指定poll的超时值，单位是毫秒。当timeout为-1时，poll调用将永远阻塞，直到某个事件发生：当timeout为0时，poll调用将立即返回。
+
+
+* epoll系统调用
+
+```
+#include<sys/epoll.h>
+int epoll_create(int size)
+```
+
+size: 只是给内核一个提示，告诉它事件表需要多大。该函数返回的文件描述符将用作其他所有epoll系统调用的第一个参数。
+
+```
+int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
+```
+
+fd: 是要操作的文件描述符。
+
+op: 指定操作类型。
+
+![op](./img/op.png)
+
+event: 指定事件，它是epoll_event结构体指针类型
+
+```
+struct epoll_event
+{
+    __uint32_t events;  /*epoll事件*/
+    epoll_data_t data;  /*用户数据*/
+};
+```
+
+events: 描述事件类型。epoll支持的事件类型和poll基本相同。表示epoll事件类型的宏是在poll对应的宏加上“E”. epoll有两个额外的事件类型--EPOLLET和EPOLLONSHOT。他们对于epoll的高效运作非常关键。
+
+data：用于存储用户数据，其类型epoll_data_t
+
+```
+typedef union epoll_data
+{
+    void* ptr;
+    int fd;
+    uint32_t u32;
+    uint64_t u64; 
+} epoll_data_t;
+```
+
+epoll_data_t是一个联合体，其四个成员使用最多的是fd，它指定事件所从属的目标文件描述符。ptr成员可用来指定与fd相关的用户数据。但由于epoll_data_t是一个联合体，我们不能同时使用其ptr成员和fd成员，所以可以放弃使用epoll_data_t的fd成员，而在ptr指向的用户数据中包含fd。
+
+```
+int epoll_wait(int epfd, struct epoll_event* events, int maxevents, int timeout);
+```
+
+该函数成功时返回就绪的文件描述符的个数，失败返回-1并设置errno
+
+timeout：与poll接口的timeout参数相同。
+
+maxevents：指定最多监听多少事件，它必须大于0
+
+epoll_wait函数如果检测到事件，就将所有的事件从内核事件表（由epfd参数指定）中复制到它的第二个参数events指向的数组中。这个数组只用于输出epoll_wait检测到的就绪事件，而不像select和poll的数组参数那样即用于传入用户祖册的事件，又用于输出内核检测到的就绪事件。这就极大地提高了应用程序索引就绪文件描述符的效率。
