@@ -168,3 +168,29 @@ timeout：与poll接口的timeout参数相同。
 maxevents：指定最多监听多少事件，它必须大于0
 
 epoll_wait函数如果检测到事件，就将所有的事件从内核事件表（由epfd参数指定）中复制到它的第二个参数events指向的数组中。这个数组只用于输出epoll_wait检测到的就绪事件，而不像select和poll的数组参数那样即用于传入用户祖册的事件，又用于输出内核检测到的就绪事件。这就极大地提高了应用程序索引就绪文件描述符的效率。
+
+```
+//demo
+/*如何索引epoll返回的就绪文件描述符*/
+int ret = epoll_wait(epollfd, events, MAX_EVENT_MUMBER, -1);
+/*仅遍历就绪的ret个文件描述符*/
+for(int i = 0; i < ret; i++)
+{
+    int sockfd = events[i].data.fd;
+    /*sockfd肯定就绪，直接处理*/
+}
+```
+
+* LT和ET模式
+
+epoll对文件描述符的操作有两种模式：LT(Level Trigger，电平触发)模式，ET(EdgeTrigger,边沿触发)模式。LT模式是默认的工作模式，这种模式下epoll相当于一个效率较高的poll。当往epoll内核事件表中注册一个文件描述符上的EPOLLET事件时，epoll将以ET模式来操作该文件描述符。ET模式是epoll的高效工作模式。
+
+对于采用LT工作模式的文件描述符，当epoll_wait检测到其上有事件法师并将此事件通知应用程序后，应用程序可以不立即处理该事件。这样，当应用程序下一次调用epoll_wait时，epoll_wait还会再次向应用程序通告此事件，直到该事件被处理。而对于采用ET工作模式的文件描述符，当epoll_wait检测到其上有事件发生并将此事件通知应用程序后，应用程序必须立即处理该事件，因为后续的epoll_wait调用将不再向应用程序通知这一事件。可见，ET模式在很大程度上降低了同一个epoll事件被重复触发的次数，因此效率要比LT模式高。
+
+
+* EPOLLONESHOT事件
+
+即使我们使用ET模式，一个socket上的某个事件还是可能被触发多次。这在并发程序中就会引起一个问题。比如一个线程(或进程，下同)在读取完某个socket上的数据后开始处理这些数据，而在数据的处理过程中该socket上又有新数据可读(EPOLLIN在次被触发)，此时另外一个线程被唤醒来读取这些新的数据。于是就出现了两个线程同时操作一个socket的局面。这一点可以使用epoll的EPOLLONESHOT事件实现。
+
+对于注册了EPOLLONESHOT事件的文件描述符，操作系统最多触发其上注册的一个可读，可写或者异常事件，且只触发一次。但是要在线程处理完毕时重置这个socket上的EPOLLONESHOT事件，以确保这个socket下次可读时，其EPOLLIN事件能被触发。
+
