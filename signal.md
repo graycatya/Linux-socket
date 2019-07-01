@@ -98,3 +98,46 @@ sa_flags:
 ![sa_flags](./img/sa_flags.png)
 
 
+Linux使用数据结构sigset_t来表示一组信号
+
+```
+#include <bits/sigset.h>
+#define _SIGSET_NWORDS (1024 / (8 * sizeof(unsigned long int)))
+typedef struct
+{
+    unsigned long int __val[SIGSET_NWORDS];
+} __sigset_t;
+```
+
+sigset_t 实际上是一个长整型数组，数组的每个元素的每个位表示一个信号。这种定义方式和文件描述符集fd_set类似。
+
+
+```
+#include <signal.h>
+int sigemptyset(sigset_t* _set); /*清空信号集*/
+int sigfillset(sigset_t* _set);  /*在信号集中设置所有信号*/
+int sigaddset(sigset_t* _set, int _signo);  /*将信号 _signo添加至信号集中*/
+int sigdelset(sigset_t* _set, int _signo);  /*将信号 _signo从信号集中删除*/
+int sigismember(const sigset_t* _set, int _signol); /*测试 _signo是否在信号集中*/
+```
+
+```
+int sigprocmask(int _how, _const sigset_t* _set, sigset_t* _oset);  /*设置或查看进程的信号掩码*/
+```
+
+_set: 指定新的信号掩码， 
+
+_oset: 输出原来的信号掩码（如果不为NULL的话）
+
+如果_set参数不为NULL，则_how 参数指定设置进程信号掩码的方式：
+
+![_how](./img/_how.png)
+
+如果 _set为NULL, 则进程信号掩码不变，此时我们仍然可以利用_oset参数来获得进程当前的信号掩码。
+
+设置进程信号掩码后，被屏蔽的信号将不能被进程接收。如果给进程发送一个被屏蔽的信号，则操作系统将该信号设置为进程的一个被挂起的信号。如果我们取消对被挂起信号的屏蔽，则它能立即被进程接收到。
+
+```
+#include <signal.h>
+int sigpending(sigset_t* set);
+```
