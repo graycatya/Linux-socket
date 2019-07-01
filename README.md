@@ -78,7 +78,7 @@ struct in_addr
 struct sockaddr_in6
 {
     sa_family_t sin6_family;    /*地址族: AF_INET6*/
-    u_int16_t sin6_port;    /*端口好，要用网络字节序表示*/
+    u_int16_t sin6_port;    /*端口号，要用网络字节序表示*/
     u_int32_t sin6_flowinfo; /*流信息， 应设置为0*/
     struct in6_addr sin6_addr; /*IPv6地址结构体*/
     u_int32_t sin6_scope_id; /*scope ID, 目前处于实验阶段*/
@@ -218,8 +218,11 @@ send成功时返回实际读取到的数据长度， send出错时返回-1并设
 2. ssize_t sendto(int sockfd, const void* buf, size_t len, int flags, const struct sockaddr* dest_addr, socklen_t addrlen);
 
 recvfrom于sendto 往sockfd读取和写入数据。
+
 src_addr : 发送端地址。
+
 dest_addr : 接收端地址。
+
 addrlen ： 地址长度。
 
 把后面两个参数设为NULL，也可用于TCP通信。
@@ -245,7 +248,9 @@ struct msghdr
     socklen_t msg_controllen;   /*辅助数据的大小*/
     int msg_flags; /*复制函数中的flags参数，并在调用过程中更新*/
 };
+
 //msg_name 成员指向一个socket地址结构体变量，它指定通信对方socket地址。对于面向连接的TCP，必须设置为NULL
+
 struct lovec
 {
     void *lov_base; /*内存起始地址*/
