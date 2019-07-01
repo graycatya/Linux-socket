@@ -45,3 +45,56 @@ SIG_IGN表示忽略目标信号， SIG_DEL表示使用信号的默认处理方�
 ![标准信号](./img/signals0.png)
 
 ![标准信号](./img/signals1.png)
+
+
+```
+#include <signal.h>
+/*设置处理函数*/
+_sighandler_t signal (int sig, _sighandler_t _handler);
+```
+
+sig: 参数指出要捕获的信号类型。_handler参数是_sighandler_t类型的函数指针，用于指定信号sig的处理函数。
+
+signal: 函数成功时返回一个函数指针，该函数指针的类型也是_sighandler_t.这个返回值是前一次调用signal函数时传入的函数指针，或者是信号sig对应的默认处理函数指针SIG_DEG（如果是第一次调用signal的话）。
+
+signal系统调用出错时返回SIG_ERR,并设置errno。
+
+
+```
+#include <signal.h>
+/*设置信号处理函数的更健壮的接口是如下的系统调用*/
+int sigaction(int sig, const struct sigaction* act, struct sigaction* cact);
+```
+
+sig: 参数指出要捕获的信号类型。act参数指定新的信号处理方式，oact参数则输出信号先前的处理方式(如果不为NULL的话)。act和oact都是sigaction结构体类型的指针，sigaction结构体描述了信号处理的细节：
+
+```
+struct sigaction
+{
+#ifdef __USE_POSIX199309
+    union
+    {
+        _sighandler_t sa_handler;
+        void (*sa_sigaction) (int, siginfo_t*, void*);
+    }
+    _sigaction_handler;
+    #define sa_handler __sigaction_handler.sa_handler
+    #define sa_sigaction __sigaction_handler.sa_sigaction
+    #else
+        _sighandler_t sa_handler;
+    #endif
+        _sigset_t sa_mask;
+        int sa_flags;
+        void (*sa_restorer) (void);
+};
+```
+
+sa_hander: 指定信号处理函数。
+
+sa_mask: 设置进程的信号掩码(确切地说是在进程原有信号掩码的基础上增加信号掩码)，以指定哪些信号不能发送给本进程。sa_mask是信号集sigset_t(_sigset_t的同义词)类型，该类型指定一组信号。
+
+sa_flags:
+
+![sa_flags](./img/sa_flags.png)
+
+
