@@ -95,5 +95,84 @@ sudo make install
 
         注意: 设置event_config.请求OS不能提供的后端是很容易的。比如说，对于libevent2.0.1-alpha,在Windows中是没有0(1)后端的；在Linux中也没有同时提供EV_FEATURE_FDS 和 EV_FEATURE_O1特征的后端。如果创建了libevent不能满足的配置，event_base_new_with_config()会返回NULL。
 
+
+    * 检查event_base后端
+
+        有时候需要检查event_base 支持哪些特性，或者当前使用哪种方法。
+
+        * 接口 1
+
+            ```
+            const char **event_get_supported_methods(void);
+            ```
+
+            * event_get_supported_methods()函数返回一个指针，指向libevent支持的方法名字数组。这个数组的最后一个元素是NULL。
+
+            实例:
+
+            ```
+            int i;
+            const char **methods = evnet_get_supported_methods();
+            printf("Starting Libevent %s. Available methods are:\n", event_get_version());
+            for(i = 0; methods[i] != NULL; ++i)
+            {
+                printf("    %s\n", methods[i]);
+            }
+            ```
+
+            这个函数返回libevent被编译以支持的方法列表。然而libevent运行的时候，操作系统可能不能支持所有方法。可能OSX版本中的kqueue的bug大多，无法使用。
+
+        * 接口 2
+
+            ```
+            const char* event_base_get_method(const struct event_base *base);
+
+            enum event_method_feature {
+                EV_FETURE_ET = 0x01,
+                EV_FETURE_O1 = 0x02,
+                EV_FEATURE_FDS = 0x04
+            };
+            event_base_get_features(const struct event_base *base);
+            ```
+
+            event_base_get_method()返回event_base正在使用的方法。
+
+            event_base_get_features() 返回event_base支持的特征的比特掩码。
+
         
+        实例:
+
+        ```
+        struct event_base *base;
+        enum event_method_feature f;
+
+        base = event_base_new();
+        if(!base)
+        {
+            puts("Couldn't get an event_base!");
+        }
+        else
+        {
+            printf("Using Libevent with backend method %s.", event_base_get_method(base) );
+            f = event_base_get_features(base);
+            if((f & EV_FEATURE_ET))
+            {
+                printf("    Edge-triggered events are supported.");
+            }
+            if((f & EV_FEATURE_O1))
+            {
+                printf("    0(1) event notification is supported.");
+            }
+            if((f & EV_FEATURE_FDS))
+            {
+                printf("    All FD types are supported");
+            }
+            puts("");
+        }
+        ```
         
+    * 释放event_base
+
+        ```
+        void event_base_free(struct event_base *base);
+        ```
