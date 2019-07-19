@@ -176,3 +176,57 @@ sudo make install
         ```
         void event_base_free(struct event_base *base);
         ```
+
+    * event_base优先级
+
+        libevent支持为事件设置多个优先级。然而，event_base默认只支持单个优先级。可以调用event_base_priority_init()设置event_base的优先级数目。
+
+        ```
+        int event_base_priority_init(struct event_base *base, int n_priorities);
+        ```
+
+        成功时这个函数返回0，失败时返回-1.base是要修改的event_base, n_priorities是要支持的优先级数目，这个数目至少是1.每个新的事件可用的优先级将从0(最高)到n_priorities-1(最低).
+
+        常量EVENT_MAX_PRIORITIES表示n_priorities的上限。调用这个函数时为n_priorities给出更大的值是错误的。
+
+        注意:必须在任何事件激活之前调用这个函数，最好在创建event_base后立即调用。
+
+
+    * event_base和fork
+
+        不是所有事件后端都在调用fork()之后可以正确工作。所以，如果使用fork()或者其他相关系统调用启动新进程之后，希望在新进程中继续使用event_base,就需要进行重新初始化。
+
+        ```
+        int event_reinit(struct event_base *base);
+        ```
+
+        实例:
+
+        ```
+        struct event_base *base = event_base_new();
+
+        if(fork())
+        {
+            continue_running_parent(base);
+        }
+        else
+        {
+            event_reinit(base);
+            continue_running_child(base);
+        }
+        ```
+
+
+    * 事件循环event_loop
+
+        * 运行循环
+
+            一旦有了一个已经注册了某些事件的event_base(关于如何创建和注册事件请看下一节)， 就需要让libevent等待事件并且通知事件的发生。
+
+            ```
+            #define EVLOOP_ONCE     0x01
+            #define EVLOOP_NONBLOCK     0x02
+            #define EVLOOP_NO_EXIT_ON_EMPTY     0x04
+
+            int event_base_loop(struct event_base *base, int flags);
+            ```
