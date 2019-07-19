@@ -367,6 +367,8 @@ sudo make install
         为帮助调试程序(或者调试libevent),有时候可能需要加入到event_base 的事件及其状态的完整列表。调用event_base_dump_events()可以将这个列表输出到指定的文件中。
 
             ```
-             
+            void event_base_dump_events(struct event_base *base, FILE *f);
             ```
+
+        这个列表是人可读的，未来版本的libevent将会改变其格式。
 
