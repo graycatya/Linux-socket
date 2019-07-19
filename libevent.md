@@ -230,3 +230,97 @@ sudo make install
 
             int event_base_loop(struct event_base *base, int flags);
             ```
+
+        默认情况下,event_base_loop()函数运行event_base直到其中没有已经注册的事件为止。执行循环的时候，函数重复地检查是否有任何已经注册的事件被触发(比如说，读事件的文件描述符已经就绪，可以读取了;或者超时事件的超时时间即将到达)。如果有事件被触发，函数标记被触发的事件为"激活的"，并且执行这些事件。
+
+        在flags参数中设置一个或者多个标志就可以改变event_base_loop()的行为。如果设置了EVLOOP_ONCE, 循环将等待某些事件成为激活的，执行激活的事件直到没有更多的事件可以执行，然会返回。如果设置了EVLOOP_NONBLOCK,循环不会等待事件被触发:循环将仅仅检测是否有事件已经就绪，可以立即触发，如果有，则执行事件的回调。
+
+        完成工作后，如果正常退出，event_base_loop()返回0;如果因为后端中的某些未处理错误而退出，则返回-1.
+
+        实例(理解event_base_loop()算法概要):
+
+            ```
+            while(any events are registered with the loop, or EVLOOP_NO_EXIT_ON_EMPTY was set)
+            {
+                if(EVLOOP_NONBLOCK was set, or any events are already active)
+                {
+                    If any registered events have triggered, mark them active.
+                }
+                else
+                {
+                    Wait until at least one event has triggered, and mark it active.
+                }
+
+                for(p = 0; p < n_priorities; ++p)
+                {
+                    if(any event with priority of p is active)
+                    {
+                        Run all active events with priority of p.
+                        break;
+                    }
+                }
+
+                if(EVLOOP_ONCE was set or EVLOOP_NONLOCK was set)
+                {
+                    break;
+                }
+            }
+            ```
+
+            为了方便也可以调用
+
+            ```
+            int event_base_dispatch(struct event_base *base);
+            ```
+
+            event_base_dispatch() 等同于没有设置标志的event_base_loop(). 
+            
+            所以，event_base_dispatch() 将一直运行，直到没有已经注册的事件了，或者调用了
+
+            event_base_loopbreak() 或者 event_base_loopexit() 为止。
+
+    
+    * 停止循环
+
+        如果想在移除所有已经注册的事件之前停止活动的事件循环，可以调用两个稍有不同的函数。
+
+        ```
+        int event_base_loopexit(struct event_base *base, const struct timeval *tv);
+
+        int event_base_loopbreak(struct event_base *base);
+        ```
+
+        event_base_loopexit() 让event_base在给定时间之后停止循环。如果tv参数为NULL,event_base会立即停止循环，没有延时。
+
+        如果event_base 当前正在执行任何激活事件的回调，则回调会继续运行，直到运行完所有激活事件的回调后才退出。
+
+        event_base_loopbreak()让event_base立即退出循环。它与event_base_loopexit(base, NULL)的不同在于，如果event_base当前正在执行激活事件的回调，它将在执行完当前正在处理的事件后立即退出。
+
+        注意: event_base_loopexit(base, NULL); 和 event_base_loopbreak(base)在事件循环没有运行时的行为不同；前者安排下一次事件循环在下一轮回调完成后立即停止(就好像带EVLOOP_ONCE标志调用一样);后者却仅仅停止当前正在运行的循环，如果事件循环没有运行，则没有任何效果。
+
+        实例:
+
+        ```
+        #include <event2/event.h>
+
+        /*这里有一个回调函数调用loopbreak*/
+        void cb(int sock, short what, void *arg)
+        {
+            struct event_base *base = arg;
+            event_base_loopbreak(base);
+        }
+
+        void main_loop(struct event_base *base, evutil_socket_t watchdog_fd)
+        {
+            struct event *watchdog_event;
+
+            /*onstruct一个新事件，每当有任何字节要从看门狗套接字读取时，
+            该事件就会被触发。当这种情况发生时，我们将调用cb函数，它将
+            使循环立即退出，而不运行任何其他活动事件。*/
+            watchdog_event = event_new(base, watchdog_fd, EV_READ, cb, base);
+
+            event_add(watchdog_event, NULL);
+
+            event_base_dispatch(base);
+        }
+        ```
