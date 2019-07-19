@@ -327,6 +327,7 @@ sudo make install
 
         实例 2(执行事件循环10秒，然后退出):
 
+
             ```
             #include <event2/event.h>
 
@@ -351,7 +352,9 @@ sudo make install
             }
             ```
 
-            有时候需要知道对 event_base_dispatch() 或者 event_base_loop() 的调用是正常退出的，还是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的。 可以调用下述函数来确定是否调用了loopexit或者break函数。
+
+        有时候需要知道对 event_base_dispatch() 或者 event_base_loop() 的调用是正常退出的，还是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的。 可以调用下述函数来确定是否调用了loopexit或者break函数。
+
 
             ```
             int event_base_got_exit(struct event_base *base);
@@ -359,7 +362,8 @@ sudo make install
             int event_base_got_break(struct event_base *base);
             ```
 
-            这两个函数分别会在循环是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的时候返回true，否则返回false。下次启动事件循环的时候，这些值会被重设。
+
+        这两个函数分别会在循环是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的时候返回true，否则返回false。下次启动事件循环的时候，这些值会被重设。
 
     
     * 转储 event_base 的状态
@@ -371,4 +375,74 @@ sudo make install
             ```
 
         这个列表是人可读的，未来版本的libevent将会改变其格式。
+
+    * 事件 event
+
+        libevent 的基本操作单元是事件。每个事件代表一组条件的集合，这些条件包括:
+
+            * 文件描述符已经就绪，可以读取或者写入
+            
+            * 文件描述符变为就绪状态，可以读取或者写入(仅对于边沿触发IO) 
+
+            * 超时事件
+
+            * 用户触发事件 
+
+        所有事件具有相似的生命周期。调用libevent函数设置事件并且关联到 event_base之后，事件进入"已初始化(initialized)状态"。此时可以将事件添加到event_base中，这使之进入"未决(pending)"状态。在未决状态下，如果触发事件的条件发生(比如说，文件描述符的状态改变，或者超时时间到达)，则事件进入"激活(active)"状态，(用户提供的)事件回调函数将被执行。如果配置为"持久的(persistent)",事件将保持为未决状态。否则，执行完回调后，事件不再是未决的。删除操作可以让未决事件成为非未决(已初始化)的；添加操作可以让非未决事件再次成为未决的。
+
+
+    * 生成新事件
+
+        使用 event_new() 接口创建事件。
+
+        ```
+        #define EV_TIMEOUT  0x01
+        #define EV_READ     0x02
+        #define EV_WRITE    0x04
+        #define EV_SIGNAL   0x08
+        #define EV_PERSIST  0x10
+        #define EV_ET       0x20
+
+        typedef void (*event_cakkback_fn)(evutil_socket_t, short, void*);
+
+        struct event* event_new(struct event_base *base, evutil_socket_t fd, 
+                            short what, event_callback_fn cb,
+                            void *arg);
+
+        void event_free(struct event *event);
+        ```
+
+        event_new() 试图分配和构造一个用于base的新的事件。what参数是上述标志的集合。
+
+        如果fd非负，则它是将被观察其读写事件的文件。
+
+        事件被激活时，libevent将调用cb函数。
+
+        传递这些参数: 文件描述符fd，表示所有被触发事件的位字段，以及构造事件时的arg参数。
+
+        发生内部错误，或者传入无效参数时，event_new()将返回NULL。
+
+        注意: 新创建的事件都处于已初始化和非未决状态，调用event_add()可以使其成为未决的。要释放事件，调用event_free(). 对于未决或者激活状态的事件调用event_free()是安全的。在释放事件之前，函数将会使事件成为非激活和非未决的。
+
+
+        实例:
+
+            ```
+            #include <event2/event.h>
+
+            void cb_func(evutil_socket_t fd, short what, void *arg)
+            {
+                const char *data = arg;
+                printf("Got an event on socket %d:%s%s%s%s [%s]",
+                    (int)fd,
+                    (what&EV_TIMEOUT) ? " timeout" : "",
+                    (what&EV_READ) ?    " read" : "",
+                    (what&EV_WRITE) ?   " write" : "",
+                    (what&EV_SIGNAL) ?  " signal" : "",
+                    data);
+            }
+
+            
+            ```
+
 
