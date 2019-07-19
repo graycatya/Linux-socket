@@ -298,29 +298,75 @@ sudo make install
 
         注意: event_base_loopexit(base, NULL); 和 event_base_loopbreak(base)在事件循环没有运行时的行为不同；前者安排下一次事件循环在下一轮回调完成后立即停止(就好像带EVLOOP_ONCE标志调用一样);后者却仅仅停止当前正在运行的循环，如果事件循环没有运行，则没有任何效果。
 
-        实例:
+        实例 1:
 
-        ```
-        #include <event2/event.h>
+            ```
+            #include <event2/event.h>
 
-        /*这里有一个回调函数调用loopbreak*/
-        void cb(int sock, short what, void *arg)
-        {
-            struct event_base *base = arg;
-            event_base_loopbreak(base);
-        }
+            /*这里有一个回调函数调用loopbreak*/
+            void cb(int sock, short what, void *arg)
+            {
+                struct event_base *base = arg;
+                event_base_loopbreak(base);
+            }
 
-        void main_loop(struct event_base *base, evutil_socket_t watchdog_fd)
-        {
-            struct event *watchdog_event;
+            void main_loop(struct event_base *base, evutil_socket_t watchdog_fd)
+            {
+                struct event *watchdog_event;
 
-            /*onstruct一个新事件，每当有任何字节要从看门狗套接字读取时，
-            该事件就会被触发。当这种情况发生时，我们将调用cb函数，它将
-            使循环立即退出，而不运行任何其他活动事件。*/
-            watchdog_event = event_new(base, watchdog_fd, EV_READ, cb, base);
+                /*onstruct一个新事件，每当有任何字节要从看门狗套接字读取时，
+                该事件就会被触发。当这种情况发生时，我们将调用cb函数，它将
+                使循环立即退出，而不运行任何其他活动事件。*/
+                watchdog_event = event_new(base, watchdog_fd, EV_READ, cb, base);
 
-            event_add(watchdog_event, NULL);
+                event_add(watchdog_event, NULL);
 
-            event_base_dispatch(base);
-        }
-        ```
+                event_base_dispatch(base);
+            }
+            ```
+
+        实例 2(执行事件循环10秒，然后退出):
+
+            ```
+            #include <event2/event.h>
+
+            void run_base_with_ticks(struct event_base *base)
+            {
+                struct timeval ten_sec;
+                ten_sec.tv_sec = 10;
+                ten_sec.tv_usec = 0;
+
+                /* 现在，我们以10秒为间隔运行event_base，在每个间隔之后打印“Tick”。
+                要了解实现10秒计时器的更好方法，请参阅下面关于持久计时器事件的部分。*/
+
+                while(1)
+                {
+                    /*初始化10秒后退出时间*/
+                    event_base_loopexit(base, &ten_sec);
+
+                    event_base_dispatch(base);
+
+                    puts("Tick");
+                }
+            }
+            ```
+
+            有时候需要知道对 event_base_dispatch() 或者 event_base_loop() 的调用是正常退出的，还是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的。 可以调用下述函数来确定是否调用了loopexit或者break函数。
+
+            ```
+            int event_base_got_exit(struct event_base *base);
+
+            int event_base_got_break(struct event_base *base);
+            ```
+
+            这两个函数分别会在循环是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的时候返回true，否则返回false。下次启动事件循环的时候，这些值会被重设。
+
+    
+    * 转储 event_base 的状态
+
+        为帮助调试程序(或者调试libevent),有时候可能需要加入到event_base 的事件及其状态的完整列表。调用event_base_dump_events()可以将这个列表输出到指定的文件中。
+
+            ```
+             
+            ```
+
