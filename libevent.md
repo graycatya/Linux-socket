@@ -396,12 +396,12 @@ sudo make install
         使用 event_new() 接口创建事件。
 
         ```
-        #define EV_TIMEOUT  0x01
-        #define EV_READ     0x02
-        #define EV_WRITE    0x04
-        #define EV_SIGNAL   0x08
-        #define EV_PERSIST  0x10
-        #define EV_ET       0x20
+        #define EV_TIMEOUT  0x01    //超时事件
+        #define EV_READ     0x02    //读事件
+        #define EV_WRITE    0x04    //写事件
+        #define EV_SIGNAL   0x08    //信号事件
+        #define EV_PERSIST  0x10    //周期性触发
+        #define EV_ET       0x20    //边缘触发，如果底层模型支持
 
         typedef void (*event_cakkback_fn)(evutil_socket_t, short, void*);
 
@@ -440,9 +440,95 @@ sudo make install
                     (what&EV_WRITE) ?   " write" : "",
                     (what&EV_SIGNAL) ?  " signal" : "",
                     data);
+
             }
 
-            
+            void main_loop(evutil_socket_t fd1, evutil_socket_t fd2)
+            {
+                struct event *ev1, *ev2;
+                struct timeval five_seconds = {5,0};
+                struct event_base *base = event_base_new();
+
+                /* 调用者已经以某种方式设置了fd1、fd2，并使它们非阻塞。 */
+                ev1 = event_new(base, fd1, EV_TIMEOUT|EV_READ|EV_PERSIST, cb_func, (char*)"Reading event");
+                ev2 = event_new(base, fd2, EV_WRITE|EV_PERSIST, cb_func, (char*)"Writing event");
+
+                event_add(ev1, &five_seconds);
+                event_add(ev2, NULL);
+
+                event_base_dispatch(base);
+            }
             ```
 
+    * 事件持久性
+
+        默认情况下,每当未决事件成为激活的(因为 fd 已经准备好读取或者写入,或者因为超
+        时), 事件将在其回调被执行前成为非未决的。如果想让事件再次成为未决的 ,可以
+        在回调函数中 再次对其调用 event_add()。
+
+        然而,如果设置了 EV_PERSIST 标志,事件就是持久的。这意味着即使其回调被激活
+        ,事件还是会保持为未决状态 。如果想在回调中让事件成为非未决的 ,可以对其调用
+        event_del ()。
+
+
+        每次执行事件回调的时候,持久事件的超时值会被复位。因此,如果具有 EV_READ|EV_PERSIST 标志,以及5秒的超时值,则事件将在以下情况下成为激活的:
+
+            * 套接字已经准备好被读取的时候
+
+            * 从最后一次成为激活的开始，已经逝去5秒
+
+    
+    * 信号事件
+
+        libevent 也可以监测 POSIX 风格的信号。要构造信号处理器,使用:
+
+        ```
+        #define evsignal_new(base, signum, cb, arg)     event_new(base, signum, EV_SIGNAL | EV_PERSIST, cb, arg)
+
+        struct event *hup_event;
+        struct event_base *base = event_base_new();
+        /* call sighup_function on a HUP signal */
+        hup_event = evsignal_new(base, SIGHUP, sighup_function, NULL);
+        ```
+
+        注意 :信号回调是信号发生后在事件循环中被执行的,所以可以安全地调用通常不能 在 POSIX 风格信号处理器中使用的函数.
+
+        libevent 也提供了一组方便使用的宏用于处理信号事件:
+
+        ```
+        #define evsignal_add(ev, tv) event_add((ev),(tv))
+        #define evsignal_del(ev) event_del(ev)
+        #define evsignal_pending(ev, what, tv_out) event_pending((ev), (what), (tv_out))
+        ```
+
+        注意: libevent和大多数后端中，每个进程任何时刻只能有一个event_base可以监听信号。如果同时两个event_base添加
+        信号事件，即使是不同的信号，也只有一个event_base可以取得信号。kqueue后端没有这个限制。
+
+    * 事件的未决和非未决
+
+        构造事件之后，在将其添加到event_base 之前实际上是不能对其做任何操作的。使用event_add() 将事件添加到event_base.
+
+    * 设置未决事件
+
+        ```
+            int event_add(struct event *ev, const struct timeval *tv);
+        ```
+
+        在非未决的事件上调用event_add() 将使其在配置的event_base 中成为未决的。成功时函数返回0，失败时返回-1.
+
+        如果tv位NULL，添加的事件不会超时。否则，tv以秒和微妙指定超时值。
+
+        如果对已经未决的事件调用 event_add(),事件将保持未决状态,并在指定的超时时间被重新调度。
+
+        注意 :不要设置 tv 为希望超时事件执行的时间。如果在 2010 年 1 月 1 日设置 “tv->tv_sec=time(NULL)+10;”,超时事件将会等待40年,而不是10秒。
+
+    * 设置非未决事件
+
+        ```
+            int event_del(struct event *ev);
+        ```
+        
+        对已经初始化的事件调用 event_del()将使其成为非未决和非激活的。如果事件不是
+        未决的或者激活的,调用将没有效果。成功时函数返回 0,失败时返回-1。
+        注意 :如果在事件激活后,其回调被执行前删除事件,回调将不会执行。
 
