@@ -522,13 +522,188 @@ sudo make install
 
         注意 :不要设置 tv 为希望超时事件执行的时间。如果在 2010 年 1 月 1 日设置 “tv->tv_sec=time(NULL)+10;”,超时事件将会等待40年,而不是10秒。
 
+
     * 设置非未决事件
 
         ```
             int event_del(struct event *ev);
         ```
-        
+
         对已经初始化的事件调用 event_del()将使其成为非未决和非激活的。如果事件不是
         未决的或者激活的,调用将没有效果。成功时函数返回 0,失败时返回-1。
         注意 :如果在事件激活后,其回调被执行前删除事件,回调将不会执行。
+
+
+    * 事件的优先级
+
+        多个事件同时触发时，libevent没有定义各个回调的执行次序。可以使用优先级来定义某些事件比其他事件更重要。
+
+        每个 event_base 有与之相关的一个或者多个优先级。在初始化事件之后, 但是在添加到 event_base 之前,可以为其设置优先级。
+
+        ```
+        int event_priority_set(struct event *event, int priority);
+        ```
+
+        事件的优先级是一个在 0和 event_base 的优先级减去1之间的数值。成功时函数返回 0,失 败时返回-1。
+
+        多个不同优先级的事件同时成为激活的时候 ,低优先级的事件不会运行 。libevent
+        会执行高优先级的事件,然后重新检查各个事件。只有在没有高优先级的事件是激活
+        的时候 ,低优先级的事件才会运行。
+
+
+        实例:
+
+        ```
+        #include <event2/event.h>
+        void read_cb(evutil_socket_t, short, void*);
+
+        void write_cb(evutil_socket_t, short, void*);
+
+        void main_loop(evutil_socket_t fd)
+        {
+            struct event *important, *unimportant;
+            struct event_base *base;
+
+            base = event_base_new();
+            event_base_priority_init(base, 2);
+            /* 现在base的优先级0，优先级1 */
+            important = event_new(base, fd, EV_WRITE | EV_PERSIST, write_cb, NULL);
+
+            unimportant = event_new(base, fd, EV_READ | EV_PERSIST, read_cb, NULL);
+
+            event_priority_set(important, 0);
+            event_priotity_set(unimportant, 1);
+
+            /* 现在，每当fd准备好写时，写回调将发生在读回调之前。直到写回调不再活动时，读回调才会发生。 */
+        }
+        ```
+
+        注意: 如果不为事件设置优先级,则默认的优先级将会是 event_base 的优先级数目除以2.
+
+
+    * 检查事件状态
+
+        有时候需要了解事件是否已经添加，检查事件代表什么。
+
+            ```
+            int event_pending(const struct event *ev, short what, struct timeval *tv_out);
+
+            #define event_get_signal(ev) /* ... */
+
+            evutil_socket_t event_get_fd(const struct event *ev);
+
+            struct event_base *event_get_base(const struct event *ev);
+
+            short event_get_events(const struct event *ev);
+
+            event_callback_fn event_get_callback(const struct event *ev);
+
+            void *event_get_callback_arg(const struct event *ev);
+
+            int event_get_priority(const struct event *ev);
+
+            void event_get_assignment(const struct event *event, struct event_base **base_out,
+            evutil_socket_t *fd_out, short *events_out, event_callback_fn *callback_out, void **arg_out);
+            ```
+
+            event_pending()函数确定给定的事件是否是未决的或者激活的。如果是,而且 what
+            参 数设置了 EV_READ、EV_WRITE、EV_SIGNAL 或者 EV_TIMEOUT 等标志,则
+            函数会返回事件当前为之未决或者激活的所有标志 。如果提供了 tv_out 参数,并且
+            what 参数中设置了 EV_TIMEOUT 标志,而事件当前正因超时事件而未决或者激活,
+            则 tv_out 会返回事件 的超时值。
+
+            event_get_fd()和 event_get_signal()返回为事件配置的文件描述符或者信号值。
+
+            event_get_base()返回为事件配置的 event_base。event_get_events()返回事件的
+            标志(EV_READ、EV_WRITE 等)。event_get_callback()和
+            event_get_callback_arg() 返回事件的回调函数及其参数指针。
+
+            event_get_assignment()复制所有为事件分配的字段到提供的指针中。任何为
+            NULL 的参数会被忽略。
+
+
+        实例:
+
+            ```
+            #include <event2/event.h>
+            #include <stdio.h>
+            /* 更改'ev'的回调函数和callback_arg，这两个函数不能挂起。 */
+            int replace_callback(struct event *ev, event_callback_fn new_callback, void *new_callback_arg)
+            {
+            struct event_base *base;
+            evutil_socket_t fd;
+            short events;
+            int pending;
+            pending = event_pending(ev, EV_READ|EV_WRITE|EV_SIGNAL|EV_TIMEOUT, NULL);
+
+            if (pending) 
+            {
+                /* 我们希望在这里捕捉到这一点，这样就不会重新分配挂起的事件。那将非常非常糟糕。 */
+                fprintf(stderr, "Error! replace_callback called on a pending event!\n");
+                return -1;
+            }
+            event_get_assignment(ev, &base, &fd, &events,
+            NULL /* ignore old callback */ ,
+            NULL /* ignore old callback argument */
+            );
+            event_assign(ev, base, fd, events, new_callback, new_callback_arg);
+            return 0;
+            }
+            ```
+
+    * 一次触发事件
+
+        如果不需要多次添加一个事件，或者要在添加后立即删除事件，而事件又不需要是持久的，则可以使用event_base_once().
+
+        ```
+        int event_base_once(struct event_base*, evutil_socket_t, short, void(*)(evutil_socket_t, short, void *), void *, const struct timeval *);
+        ```
+
+        除了不支持EV_SIGNAL或者EV_PERSIST之外，这个函数的接口与event_new()相同。 安排的事件将以默认的优先级加入到event_base并执行。回调被执行后，libevent内部将会释放event结构。成功时函数返回0，失败时返回-1.
+
+        不能删除或者手动激活使用event_base_once() 插入的事件；如果希望能够取消事件，应该使用event_new() 或者 event_assign().
+
+    * 手动激活事件
+
+        极少数情况下,需要在事件的条件没有触发的时候让事件成为激活的。
+
+        ```
+        void event_active(struct event *ev, int what, short ncalls);
+        ```
+
+        这个函数让事件 ev 带有标志 what(EV_READ、EV_WRITE 和 EV_TIMEOUT 的组合)成 为激活的。事件不需要已经处于未决状态,激活事件也不会让它成为未决的。
+
+
+    * 事件状态之间的转换
+
+        ![op](./img/libevent0.png)
+
+
+    * 数据缓冲Bufferevent
+
+        很多时候，除了响应事件之外，应该还希望做一定的数据缓冲。比如说，写入数据的时候，通常的运行模式是:
+
+            * 决定要向连接写入一些数据，把数据放入到缓冲区中
+
+            * 等待连接可以写入
+
+            * 写入尽量多的数据
+
+            * 记住写入了多少数据，如果还有更多数据要写入，等待连接再次可以写入
+
+                这种缓冲IO模式很通用，libevent为此提供了一种通用机制，即bufferevent。
+
+                bufferevent 由一个底层的传输端口(如套接字)， 一个读取缓冲区和一个写入缓冲区组成。
+                与通常的事件在底层传输端口已经就绪，可以读取或者写入的时候执行回调不同的是，bufferevent
+                在读取或者写入了足够量的数据之后调用用户提供的回调。
+
+            有多种共享公用接口的bufferevent类型，编写本文时已存在以下类型:
+
+                * 基于套接字的 bufferevent: 使用event_*接口作为后端，通过底层流式套接字发送或者接收数据的bufferevent
+
+                * 异步 IO bufferevent: 使用Windows IOCP接口，通过底层流式套接字发送或者接收数据的bufferevent(仅用于Windows)
+
+                * 过滤型bufferevent: 将数据传输到底层 bufferevent 对象之前，处理输入或者输出数据的bufferevent: 比如说，为了压缩或者转换数据。
+
+                * 成对的 bufferevent: 相互传输数据的两个 bufferevent。
 
