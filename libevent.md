@@ -1109,9 +1109,105 @@ sudo make install
             回 1。
 
 
-    数据封装 evBuffer
+    * 数据封装 evBuffer
 
         libevent 的 evbuffer 实现了为向后面添加数据和从前面移除数据而优化的字节队列。
         
         evbuffer 用于处理缓冲网络 IO 的“缓冲”部分。它不提供调度 IO 或者当 IO 就绪时触
         发 IO 的 功能:这是 bufferevent 的工作。
+
+        * 创建和释放evbuffer
+
+            ```
+            struct evbuffer *evbuffer_new(void);
+            void evbuffer_free(struct evbuffer *buf);
+            ```    
+
+        这两个函数的功能很简明: evbuffer_new() 分配和返回一个新的空 evbuffer ; 而 evbuffer_free()释放 evbuffer 和其内容。
+
+        * evbuffer 与线程安全
+
+            ```
+            int evbuffer_enable_locking(struct evbuffer *buf, void *lock);
+            void evbuffer_lock(struct evbuffer *buf);
+            void evbuffer_unlock(struct evbuffer *buf);
+            ```
+
+
+            默认情况下,在多个线程中同时访问 evbuffer 是不安全的。如果需要这样的访问,可 以调 用 evbuffer_enable_locking() 。如果 lock 参数为 NULL , libevent 会使用 evthread_set_lock_creation_callback 提供的锁创建函数创建一个锁 。否 则,libevent 将 lock 参数用作锁。
+            
+            evbuffer_lock()和 evbuffer_unlock()函数分别请求和释放 evbuffer 上的锁。可以使 用这两个 函数让一系列操作是原子的。如果 evbuffer 没有启用锁,这两个函数不做 任何操作。 (注意:对于单个操作,不需要调用 evbuffer_lock()和evbuffer_unlock(): 如果 evbuffer 启用了锁,单个操作就已经是原子的 。只有在需要多个操作连续执行 ,不让其他线程 介入的 时候,才需要手动锁定 evbuffer)
+
+
+        * 检查 evbuffer
+
+            ```
+            size_t evbuffer_get_length(const struct evbuffer *buf); //这个函数返回 evbuffer 存储的字节数,它在2.0.1-alpha 版本中引入。
+
+            int evbuffer_add(struct evbuffer *buf, const void *data, size_t datlen); 
+            //这个函数返回连续地存储在 evbuffer前面的字节数。 
+            //evbuffer中的数据可能存储在多个分隔开的内存块中, 
+            //这个函数返回当前第一个块中的字节数。
+            ```
+
+
+        * 向evbuffer添加数据
+
+            ```
+            int evbuffer_add(struct evbuffer *buf, const void *data, size_t datlen); 
+            //这个函数添加 data 处的 datalen 字节到 buf 的末尾, 
+            //成功时返回0,失败时返回-1。
+
+            int evbuffer_add_printf(struct evbuffer *buf, const char *fmt, ...) 
+            int evbuffer_add_vprintf(struct evbuffer *buf, const char *fmt, va_list ap); 
+            //这些函数添加格式化的数据到 buf 末尾。
+            //格式参数和其他参数的处理分别与 C 库函数 printf 和 vprintf 相同。函数返 回添加的字节数。
+
+            int evbuffer_expand(struct evbuffer *buf, size_t datlen); 
+            //这个函数修改缓冲区的最后一块,或者添加一个新的块, 
+            //使得缓冲区足以容纳 datlen 字节, 而不需要更多的内存分配。
+            ```
+
+            示例:
+
+                ```
+                /* Here are two ways to add "Hello world 2.0.1" to a buffer. */ 
+                /* Directly: */ 
+                evbuffer_add(buf, "Hello world 2.0.1", 17); 
+                
+                /* Via printf: */ 
+                evbuffer_add_printf(buf, "Hello %s %d.%d.%d", "world", 2, 0, 1);
+                ```
+
+        
+        * evbuffer 数据移动
+
+            为提高效率,libevent 具有将数据从一个 evbuffer 移动到另一个的优化函数。
+
+            ```
+            int evbuffer_add_buffer(struct evbuffer *dst, struct evbuffer *s rc); 
+
+            int evbuffer_remove_buffer(struct evbuffer *src, struct evbuffer *dst, size_t datlen);
+            ```
+
+
+            evbuffer_add_buffer()将 src 中的所有数据移动到 dst 末尾,成功时返回0,失败时返 回-1。 
+
+            evbuffer_remove_buffer()函数从 src 中移动 datlen 字节到 dst 末尾,尽量少进行复 制。如果字节数小于 datlen,所有字节被移动。函数返回移动的字节数。 
+
+            evbuffer_add_buffer()在0.8版本引入; 
+            evbuffer_remove_buffer()是2.0.1-alpha 版本 新增加的。
+
+        
+        * 添加数据到evbuffer前
+
+    
+    * 链接监听器evconnlistener
+
+        evconnlistener 机制提供了监听和接受TCP链接的方法。
+        本章的所有函数和类型都在 event2/listener.h 中声明,除非特别说明。 
+        它们都在2.0.2-alpha 版本中首次出现。
+
+        
+
+
