@@ -1208,5 +1208,481 @@ sudo make install
         它们都在2.0.2-alpha 版本中首次出现。
 
 
+        * 创建和释放 evconnlistener
+
+            ```
+            struct evconnlistener *evconnlistener_new(struct event_base *base, 
+                        evconnlistener_cb cb, void *ptr, unsigned flags, int backlog, evutil_socket_t fd);
+
+            struct evconnlistener *evconnlistener_new_bind(struct event_base *base,
+                        evconnlistener_cb cb, void *ptr, unsigned flags, int backlog, const struct sockaddr *sa, int socklen);
+
+            void evconnlistener_free(struct evconnlistener *lev);
+            ```
+
+            两个 evconnlistener_new*()函数都分配和返回一个新的连接监听器对象。连接监听
+            器使 用 event_base 来得知什么时候在给定的监听套接字上有新的 TCP 连接。新
+            连接到达时,监听 器调用你给出的回调函数。
+
+            两个函数中,base参数都是监听器用于监听连接的 event_base。cb是收到新连接时要调 用的回调函数;
+
+            如果 cb 为 NULL,则监听器是禁用的,直到设置了回调函数为止。
+
+            ptr 指针将传递给回调函数。
+
+            flags 参数控制回调函数的行为,下面会更详细论述。
+
+            backlog 是任何 时刻网络栈允许处于还未接受状态的最大未决连接数。
+
+            更多细节请查看系统的 listen()函数文档。
+
+            如果 backlog 是负的,libevent 会试图挑选一个较好的值 ; 如果为0,libevent 认为已
+            经对提供的套接字调用了listen()。
+
+            两个函数的不同在于如何建立监听套接字。 evconnlistener_new()函数假定已经将套接字绑定到要监听的端口,然后通过 fd 传入这个套接字。
+
+            如果要 libevent 分配和绑定套接字,可以调用 evconnlistener_new_bind() ,传输要绑定到的地址和地址长度。
+
+            要释放连接监听器,调用 evconnlistener_free()。
+
+            * 可识别的标志
+
+                可以给evvonnlistener_new()函数的flags参数传入一些标志。可以用或(OR)运算任意连接下述标志:
+
+                * LEV_OPT_LEAVE_SOCKETS_BLOCKING
+
+                    默认情况下，连接监听器接收新套接字后，会将其设置为非阻塞的，以便将其用于libevent.如果不想要这种行为，可以设置这个标志。
+
+                * LEV_OPT_CLOSE_ON_FREE
+
+                    如果设置了这个选项，释放连接监听器会关闭底层套接字。
+
+                * LEV_OPT_CLOSE_ON_EXEC
+
+                    如果设置了这个选项，连接监听器会为底层套接字设置close-on-exec标志。更多信息请看fcntl 和 FD_CLOEXEC的平台文档。
+
+                * LEV_OPT_REUSEABLE
+
+                    某些平台在默认情况下 ,关闭某监听套接字后 ,要过一会儿其他套接字才可以绑定到
+                    同一个 端口。设置这个标志会让 libevent 标记套接字是可重用的,这样一旦关闭,可
+                    以立即打开其 他套接字,在相同端口进行监听。
+
+                * LEV_OPT_THREADSAFE
+
+                    为监听器分配锁,这样就可以在多个线程中安全地使用了。这是 2.0.8-rc 的新功能。
+
+        * 链接监听器回调
+
+            ```
+                typedef void (*evconnlistener_cb) (struct evconnlistener *listener, evutil_socket_t sock struct sockaddr *addr, int len, void* ptr);
+            ```
+
+            接收到新连接会调用提供的回调函数 。
+
+            listener 参数是接收连接的连接监听器 。
+
+            sock 参数是 新接收的套接字。
+
+            addr 和 len 参数是接收连接的地址和地址长度。
+
+            ptr 是调 用 evconnlistener_new() 时用户提供的指针。
 
 
+        * 启动和禁用evconnlistener
+
+            ```
+            int evconnlistener_disable(struct evconnlistener *lev);
+
+            int evconnlistener_enable(struct evconnlistener *lev);
+            ```
+
+
+            这两个函数暂时禁止或者重新允许监听新连接。
+
+        * 调整evconnlistener的回调函数
+
+            ```
+            void evconnlistener_set_cb(struct evconnlistener *lev, evconnlistener_cb cb, void *arg);
+            ```
+
+            函数调整 evconnlistener 的回调函数和其参数。它是 2.0.9-rc 版本引入的。
+
+
+
+        * 检测 evconnlistener
+
+            ```
+            evutil_socket_t evconnlistener_get_fd(struct evconnlistener *lev);
+
+            struct event_base *evconnlistener_get_base(struct evconnlistener *lev);
+            ```
+
+            这些函数分别返回监听器关联的套接字和 event_base。
+
+        
+        * 侦测错误
+
+            可以设置一个一旦监听器上的accept()回调失败就被调用的错误回调函数。对于一个不解决就会锁定进程的错误条件，这很重要。
+
+            ```
+            typedef void (*evconnlistener_errorcb) (struct evconnlistener *lis, void *ptr);
+
+            void evconnlistener_set_error_cb(struct evconnlistener *lev, evconnlistener_errorcb errorcb);
+            ```
+
+            如果使用 evconnlistener_set_error_cb() 为监听器设置了错误回调函数,则监听器发生错误 时回调函数就会被调用。
+
+            第一个参数是监听器,
+
+            第二个参数是调用 evconnlistener_new() 时传入的 ptr。
+
+        
+        * libevent 常用设置
+
+            libevent有一些被整个进程共享的，影响整个库的全局设置。
+
+            注意: 必须在调用libevent 库的任何其他部分之前修改这些设置，否则，libevent 会进入不一致的状态.
+
+            * 日志消息回调设置
+
+                libevent可以记录内部错误和警告。。如果编译进日志支持，还会记录调试信息。默认配置下 这些信息被写到stderr。通过提供定制的日志函数可以覆盖默认行为。
+
+
+                ```
+                #define EVENT_LOG_DEBUG 0
+                #define EVENT_LOG_MSG   1
+                #define EVENT_LOG_WARN  2
+                #define EVENT_LOG_ERR   3
+
+                #define _EVENT_LOG_DEBUG    EVENT_LOG_DEBUG
+                #define _EVENT_LOG_MSG      EVENT_LOG_MSG
+                #define _EVENT_LOG_WARN     EVENT_LOG_WARN
+                #define _EVENT_LOG_ERR      EVENT_LOG_ERR
+
+                typedef void (*event_log_cb) (int severity, const char *msg);
+                void event_set_log_callback(event_log_cb cb);
+                ```
+
+                要覆盖libevent 的日志行为，编写匹配event_log_cb 签名的定制函数，将其作为参数传递 给event_set_log_callback（）。
+
+                随后libevent 在日志信息的时候，将会把信息传递给你提供的函数。再次调用event_set_log_callback（），传递参数NULL，就可以恢复默认行为。
+
+
+                实例:
+
+                    ```
+                    #include <event2/event.h>
+                    #include <stdio.h>
+
+                    static void discard_cb(int severity, const char *msg)
+                    {
+                        /* 这个回调什么也不做. */
+                    }
+                    
+                    static FILE *logfile = NULL;
+                    static void write_to_file_cb(int severity, const char *msg)
+                    {
+                        const char *s;
+                        if (!logfile)
+                            return;
+
+                        switch (severity) 
+                        {
+                            case _EVENT_LOG_DEBUG: s = "debug"; break;
+                            case _EVENT_LOG_MSG: s = "msg"; break;
+                            case _EVENT_LOG_WARN: s = "warn"; break;
+                            case _EVENT_LOG_ERR: s = "error"; break;
+                            default: s = "?"; break; /* never reached */
+                        }
+                        
+                        fprintf(logfile, "[%s] %s\n", s, msg);
+                    }
+
+                    /* 关闭Libevent中的所有日志记录。 */
+                    void suppress_logging(void)
+                    {
+                        event_set_log_callback(discard_cb);
+                    }
+
+                    /* 将所有Libevent日志消息重定向到C stdio文件“f”。 */
+                    void set_logfile(FILE *f)
+                    {
+                        logfile = f;
+                        event_set_log_callback(write_to_file_cb);
+                    }
+                    ```
+
+                在用户提供的event_log_cb 回调函数中调用libevent 函数是不安全的。
+                比如说，如果试图编写一个使用bufferevent 将警告信息发送给某个套接字的日志回
+                调函数，可能会遇到奇怪 而难以诊断的bug。未来版本libevent 的某些函数可能会
+                移除这个限制。
+                这个函数在中声明，在libevent 1.0c 版本中首次出现。
+
+
+        * 致命错误回调设置
+
+            libevent 在检测到不可恢复的内部错误时的默认行为是调用exit（）或者
+            abort（），退出正在运行的进程。这类错误通常意味着某处有bug：要么在你的代
+            码中，要么在libevent 中。
+
+            如果希望更优雅地处理致命错误，可以为libevent 提供在退出时应该调用的函数，覆盖默认 行为。
+
+            ```
+            typedef void (*event_fatal_cb)(int err);
+
+            void event_set_fatal_callback(event_fatal_cb cb);
+            ```
+
+            要使用这些函数，首先定义libevent在遇到致命错误时应该调用的函数，将其传递给 event_set_fatal_callback（）。
+
+            随后libevent 在遇到致命错误时将调用你提供的函数。 你的函数不应该将控制返回到libevent：这样做可能导致不确定的行为。
+
+            为了避免崩溃，libevent 还是会退出。你的函数被不应该调用其它libevent 函数。这些函数声明在中，在libevent 2.0.3-alpha 版本中首次出现。
+
+        * 内存管理回调设置
+
+            默认情况下，libevent 使用C 库的内存管理函数在堆上分配内存。
+            通过提供malloc、realloc和free 的替代函数，可以让libevent 使用其他的内存管理
+            器。
+
+            希望libevent 使用一个更高效的分配器时；或者希望libevent 使用一个工具分配
+            器，以便检查内存泄漏时，可能需要这样做。
+
+            ```
+            void event_set_mem_functions(void *(*malloc_fn)(size_t sz),
+                        void *(*realloc_fn)(void *ptr, size_t sz),
+                        void (*free_fn)(void *ptr));
+            ```
+
+            这里有个替换libevent分配器函数的示例，它可以计算已经分配的字节数。
+            实际应用中可能需要添加锁，以避免运行在多个线程中时发生错误。
+
+            实例:
+
+                ```
+                #include <event2/event.h>
+                #include <sys/types.h>
+                #include <stdlib.h>
+
+                /* This union's purpose is to be as big as the largest of all the types it contains. */
+                union alignment {
+                    size_t sz;
+                    void *ptr;
+                    double dbl;
+                };
+
+                /* We need to make sure that everything we return is on the rightalignment to hold anything, including a double. */
+                #define ALIGNMENT sizeof(union alignment)
+
+                /* We need to do this cast-to-char* trick on our pointers to adjustthem; doing arithmetic on a void* is not standard. */
+                #define OUTPTR(ptr) (((char*)ptr)+ALIGNMENT)
+                #define INPTR(ptr) (((char*)ptr)-ALIGNMENT)
+
+                static size_t total_allocated = 0;
+
+                static void *replacement_malloc(size_t sz)
+                {
+                    void *chunk = malloc(sz + ALIGNMENT);
+                    if (!chunk) 
+                        return chunk;
+
+                    total_allocated += sz;
+                    *(size_t*)chunk = sz;
+                    return OUTPTR(chunk);
+                }
+
+                static void *replacement_realloc(void *ptr, size_t sz)
+                {
+                    size_t old_size = 0;
+                    if (ptr) 
+                    {
+                        ptr = INPTR(ptr);
+                        old_size = *(size_t*)ptr;
+                    }
+
+                    ptr = realloc(ptr, sz + ALIGNMENT);
+                    if (!ptr)
+                        return NULL;
+                        
+                    *(size_t*)ptr = sz;
+                    total_allocated = total_allocated - old_size + sz;
+                    return OUTPTR(ptr);
+                }
+
+                static void replacement_free(void *ptr)
+                {
+                    ptr = INPTR(ptr);
+                    total_allocated -= *(size_t*)ptr;
+                    free(ptr);
+                }
+                void start_counting_bytes(void)
+                {
+                    event_set_mem_functions(replacement_malloc,
+                    replacement_realloc,
+                    replacement_free);
+                }
+                ```
+            
+            注意:
+
+            * 替换内存管理函数影响libevent 随后的所有分配、调整大小和释放内存操作。所以，必 须保证在调用任何其他libevent 函数之前进行替换。否则，libevent可能用你的free 函 数释放用C 库的malloc 分配的内存。
+
+            * 你的malloc 和realloc 函数返回的内存块应该具有和C 库返回的内存块一样的地址对齐。
+
+            * 你的realloc 函数应该正确处理realloc(NULL,sz)（也就是当作malloc(sz)处理）
+
+            * 你的realloc 函数应该正确处理realloc(ptr,0)（也就是当作free(ptr)处理）
+
+            * 你的free 函数不必处理free(NULL)
+
+            * 你的malloc 函数不必处理malloc(0)
+
+            * 如果在多个线程中使用libevent，替代的内存管理函数需要是线程安全的。
+
+            * libevent 将使用这些函数分配返回给你的内存。所以，如果要释放由libevent函数分配 和返回的内存，而你已经替换malloc 和realloc 函数，那么应该使用替代的free 函数。
+
+            event_set_mem_functions 函数声明在中，在libevent 2.0.1-alpha 版本中 首次出现。
+            可以在禁止event_set_mem_functions 函数的配置下编译libevent 。这时候使用event_set_mem_functions 将不会编译或者链接。
+            
+            在2.0.2-alpha 及以后版本中，可以通过检查是否定义了EVENT_SET_MEM_FUNCTIONS_IMPLEMENTED 宏来确定event_set_mem_functions 函数是否存在。
+
+
+        * 锁和线程的设置
+
+            编写多线程程序的时候,在多个线程中同时访问同样的数据并不总是安全的。libevent 的结构体在多线程下通常有三种工作方式:
+
+            * 某些结构体内在地是单线程的:同时在多个线程中使用它们总是不安全的。
+
+            * 某些结构体具有可选的锁:可以告知 libevent 是否需要在多个线程中使用每个对象。
+
+            * 某些结构体总是锁定的 :如果 libevent 在支持锁的配置下运行 ,在多个线程中使用它们 总是安全的。
+
+            为获取锁,在调用分配需要在多个线程间共享的结构体的 libevent 函数之前,必须告知 libevent 使用哪个锁函数。
+
+            如果使用 pthreads 库,或者使用 Windows 本地线程代码,那么你是幸运的:已经有设置 libevent 使用正确的 pthreads 或者 Windows 函数的预定义函数。
+
+            接口:
+
+                ```
+                #ifdef WIN32
+                    int evthread_use_windows_threads(void);
+                    #define EVTHREAD_USE_WINDOWS_THREADS_IMPLEMENTED
+                #endif
+
+                #ifdef _EVENT_HAVE_PTHREADS
+                    int evthread_use_pthreads(void);
+                    #define EVTHREAD_USE_PTHREADS_IMPLEMENTED
+                #endif
+                ```
+
+            如果使用不同的线程库,则需要一些额外的工作,必须使用你的线程库来定义函数去实现:
+
+            * 锁
+            * 锁定
+            * 解锁
+            * 分配锁
+            * 析构锁
+            * 条件变量
+            * 创建条件变量
+            * 析构条件变量
+            * 等待条件变量
+            * 触发/广播某条件变量
+            * 线程
+            * 线程ID检测
+
+            使用 evthread_set_lock_callbacks 和 evthread_set_id_callback 接口告知 libevent这些函数。
+
+            接口:
+
+                ```
+                #define EVTHREAD_WRITE 0x04
+                #define EVTHREAD_READ 0x08
+                #define EVTHREAD_TRY 0x10
+                #define EVTHREAD_LOCKTYPE_RECURSIVE 1
+                #define EVTHREAD_LOCKTYPE_READWRITE 2
+                #define EVTHREAD_LOCK_API_VERSION 1
+
+                struct evthread_lock_callbacks 
+                {
+                    int lock_api_version;
+                    unsigned supported_locktypes;
+                    void *(*alloc)(unsigned locktype);
+                    void (*free)(void *lock, unsigned locktype);
+                    int (*lock)(unsigned mode, void *lock);
+                    int (*unlock)(unsigned mode, void *lock);
+                };
+
+                int evthread_set_lock_callbacks(const struct evthread_lock_callbacks *);
+
+                void evthread_set_id_callback(unsigned long (*id_fn)(void));
+
+                struct evthread_condition_callbacks 
+                {
+                    int condition_api_version;
+                    void *(*alloc_condition)(unsigned condtype);
+                    void (*free_condition)(void *cond);
+                    int (*signal_condition)(void *cond, int broadcast);
+                    int (*wait_condition)(void *cond, void *lock,
+                    const struct timeval *timeout);
+                };
+
+                int evthread_set_condition_callbacks(const struct evthread_condition_callbacks *);
+                ```
+
+            evthread_lock_callbacks 结构体描述的锁回调函数及其能力。对于上述版本,lockapi_version 字段必须设置为 EVTHREAD_LOCK_API_VERSION 。必须设置supported_locktypes 字段为 EVTHREAD_LOCKTYPE* 常量的组合以描述支持的锁类型 (在 2.0.4-alpha 版本中),
+
+            EVTHREAD_LOCK_RECURSIVE 是必须的,
+            EVTHREAD_LOCK_READWRITE 则没有使用)。
+            alloc 函数必须返回指定类型的新锁 ;
+            free 函数必须释放指定类型锁持有的所有资源 ;
+            lock 函数必须试图以指定模式请求锁定 ,如果成 功则返回0,失败则返回非零;
+            unlock 函数必须试图解锁,成功则返回 0,否则返回非零。
+
+            可识别的锁类型有:
+
+            * 0:通常的，不必递归的锁。
+
+            * EVTHREAD_LOCKTYPE_RECURSIVE: 不会阻塞已经持有它的线程的锁。一旦持有它的线程进行原来锁定次数的解锁，其他线程立刻就可以请求它了。
+
+            * EVTHREAD_LOCKTYPE_READWRITE: 可以让多个线程同时因为读而持有它，但是任何时刻只有一个线程因为写而持有它。写操作排斥所有读操作。
+
+            可识别的锁模式有:
+
+            * EVTHREAD_READ: 仅用于读写锁:为读操作请求或者释放锁
+
+            * EVTHREAD_WRITE :仅用于读写锁:为写操作请求或者释放锁
+
+            * EVTHREAD_TRY :仅用于锁定:仅在可以立刻锁定的时候才请求锁定
+
+            id_fn 参数必须是一个函数,它返回一个无符号长整数,标识调用此函数的线程。对于
+            相同 线程,这个函数应该总是返回同样的值 ;而对于同时调用该函数的不同线程 ,必
+            须返回不同 的值。
+
+            vthread_condition_callbacks 结构体描述了与条件变量相关的回调函数。对于上述版本 , condition_api_version 字段必须设置为EVTHREAD_CONDITION_API_VERSION 。 alloc_condition 函数必须返回到新条件变量的指针 。它接受0作为其参数。free_condition 函 数必须释放条件变量持有的存储器和资源。 wait_condition 函数要求三个参数:一个 由 alloc_condition 分配的条件变量 ,一个由你提供的 evthread_lock_callbacks.alloc 函数分配 的锁,以及一个可选的超时值 。调用本函数时 ,必须已经持有参数指定的锁 ;本函数应该释 放指定的锁,等待条件变量成为授信状态,或者直到指定的超时时间已经流逝(可选 )。wait_condition 应该在错误时返回-1,条件变量授信时返回0,超时时返回1。返回之前,函 数应该确定其再次持有锁。最后, signal_condition 函数应该唤醒等待该条件变量的某个线 程(broadcast 参数为 false 时),或者唤醒等待条件变量的所有线程(broadcast 参数为 true 时)。只有在持有与条件变量相关的锁的时候,才能够进行这些操作。
+
+
+            关于条件变量的更多信息,请查看 pthreads 的 pthreadcond*函数文档,或者Windows 的 CONDITION_VARIABLE(Windows Vista 新引入的)函数文档。
+
+            实例:
+
+            关于使用这些函数的示例,请查看 Libevent 源代码发布版本中的evthread_pthread.c 和 evthread_win32.c 文件。
+
+            这些函数在 中声明,其中大多数在 2.0.4-alpha 版本中首次出现。 2.0.1-alpha 到2.0.3-alpha 使用较老版本的锁函数 。event_use_pthreads 函数要求程序链接 到event_pthreads 库。条件变量函数是2.0.7-rc 版本新引入的,用于解决某些棘手的死锁问题。可以创建禁止锁支持的libevent。这时候已创建的使用上述线程相关函数的程序将不能运行。
+
+            调试做的使用
+
+            为帮助调试锁的使用,libevent 有一个可选的“锁调试”特征。这个特征包装了锁调用,以便捕获典型的锁错误,包括:
+
+            * 解锁并没有持有的锁
+
+            * 重新锁定一个非递归锁
+
+            如果发生这些错误中的某一个, libevent 将给出断言失败并且退出。
+
+            ```
+                void event_enable_debug_mode(void);
+            ```
+
+            必须在创建或者使用任何锁之前调用这个函数。为安全起见,请在设置完线程函数后立即调用这个函数。
+
+            
