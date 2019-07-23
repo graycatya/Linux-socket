@@ -1,5 +1,14 @@
 * Libevent 学习
 
+* [1. event_base](#1)
+* [2. event_loop](#2)
+* [3.事件 event](#3)
+* [4. 数据缓冲Bufferevent](#4)
+* [5. 数据封装 evBuffer](#5)
+* [6. 链接监听器evconnlistener](#6)
+* [7. libevent 常用设置](#7)
+* [8. 实战例子](#8)
+
 1. 安装方法
 
 ```
@@ -13,6 +22,8 @@ sudo make install
 ```
 
 2. API说明
+
+    <h2 id="1">1. event_base</h2>
 
     * event_base结构体
 
@@ -216,6 +227,7 @@ sudo make install
         }
         ```
 
+    <h2 id="2">2. event_loop</h2>
 
     * 事件循环event_loop
 
@@ -365,7 +377,7 @@ sudo make install
 
         这两个函数分别会在循环是因为调用 event_base_loopexit() 或者 event_base_break() 而退出的时候返回true，否则返回false。下次启动事件循环的时候，这些值会被重设。
 
-    
+
     * 转储 event_base 的状态
 
         为帮助调试程序(或者调试libevent),有时候可能需要加入到event_base 的事件及其状态的完整列表。调用event_base_dump_events()可以将这个列表输出到指定的文件中。
@@ -375,6 +387,8 @@ sudo make install
             ```
 
         这个列表是人可读的，未来版本的libevent将会改变其格式。
+
+    <h2 id="3">3. 事件 event</h2>
 
     * 事件 event
 
@@ -673,11 +687,11 @@ sudo make install
 
         这个函数让事件 ev 带有标志 what(EV_READ、EV_WRITE 和 EV_TIMEOUT 的组合)成 为激活的。事件不需要已经处于未决状态,激活事件也不会让它成为未决的。
 
-
     * 事件状态之间的转换
 
         ![op](./img/libevent0.png)
 
+    <h2 id="4">4. 数据缓冲Bufferevent</h2>
 
     * 数据缓冲Bufferevent
 
@@ -1107,6 +1121,7 @@ sudo make install
             失败时 bufferevent_flush()返回-1,如果没有数据被清空则返回 0,有数据被清空则返
             回 1。
 
+    <h2 id="5">5. 数据封装 evBuffer</h2>
 
     * 数据封装 evBuffer
 
@@ -1200,6 +1215,7 @@ sudo make install
         
         * 添加数据到evbuffer前
 
+    <h2 id="6">6. 链接监听器evconnlistener</h2>
     
     * 链接监听器evconnlistener
 
@@ -1336,87 +1352,88 @@ sudo make install
 
             第二个参数是调用 evconnlistener_new() 时传入的 ptr。
 
-        
-        * libevent 常用设置
+    <h2 id="7">7. libevent 常用设置</h2>
 
-            libevent有一些被整个进程共享的，影响整个库的全局设置。
+    * libevent 常用设置
 
-            注意: 必须在调用libevent 库的任何其他部分之前修改这些设置，否则，libevent 会进入不一致的状态.
+        libevent有一些被整个进程共享的，影响整个库的全局设置。
 
-            * 日志消息回调设置
+        注意: 必须在调用libevent 库的任何其他部分之前修改这些设置，否则，libevent 会进入不一致的状态.
 
-                libevent可以记录内部错误和警告。。如果编译进日志支持，还会记录调试信息。默认配置下 这些信息被写到stderr。通过提供定制的日志函数可以覆盖默认行为。
+        * 日志消息回调设置
 
+            libevent可以记录内部错误和警告。。如果编译进日志支持，还会记录调试信息。默认配置下 这些信息被写到stderr。通过提供定制的日志函数可以覆盖默认行为。
+
+
+            ```
+            #define EVENT_LOG_DEBUG 0
+            #define EVENT_LOG_MSG   1
+            #define EVENT_LOG_WARN  2
+            #define EVENT_LOG_ERR   3
+
+            #define _EVENT_LOG_DEBUG    EVENT_LOG_DEBUG
+            #define _EVENT_LOG_MSG      EVENT_LOG_MSG
+            #define _EVENT_LOG_WARN     EVENT_LOG_WARN
+            #define _EVENT_LOG_ERR      EVENT_LOG_ERR
+
+            typedef void (*event_log_cb) (int severity, const char *msg);
+            void event_set_log_callback(event_log_cb cb);
+            ```
+
+            要覆盖libevent 的日志行为，编写匹配event_log_cb 签名的定制函数，将其作为参数传递 给event_set_log_callback（）。
+
+            随后libevent 在日志信息的时候，将会把信息传递给你提供的函数。再次调用event_set_log_callback（），传递参数NULL，就可以恢复默认行为。
+
+
+            实例:
 
                 ```
-                #define EVENT_LOG_DEBUG 0
-                #define EVENT_LOG_MSG   1
-                #define EVENT_LOG_WARN  2
-                #define EVENT_LOG_ERR   3
+                #include <event2/event.h>
+                #include <stdio.h>
 
-                #define _EVENT_LOG_DEBUG    EVENT_LOG_DEBUG
-                #define _EVENT_LOG_MSG      EVENT_LOG_MSG
-                #define _EVENT_LOG_WARN     EVENT_LOG_WARN
-                #define _EVENT_LOG_ERR      EVENT_LOG_ERR
+                static void discard_cb(int severity, const char *msg)
+                {
+                    /* 这个回调什么也不做. */
+                }
+                
+                static FILE *logfile = NULL;
+                static void write_to_file_cb(int severity, const char *msg)
+                {
+                    const char *s;
+                    if (!logfile)
+                        return;
 
-                typedef void (*event_log_cb) (int severity, const char *msg);
-                void event_set_log_callback(event_log_cb cb);
-                ```
-
-                要覆盖libevent 的日志行为，编写匹配event_log_cb 签名的定制函数，将其作为参数传递 给event_set_log_callback（）。
-
-                随后libevent 在日志信息的时候，将会把信息传递给你提供的函数。再次调用event_set_log_callback（），传递参数NULL，就可以恢复默认行为。
-
-
-                实例:
-
-                    ```
-                    #include <event2/event.h>
-                    #include <stdio.h>
-
-                    static void discard_cb(int severity, const char *msg)
+                    switch (severity) 
                     {
-                        /* 这个回调什么也不做. */
+                        case _EVENT_LOG_DEBUG: s = "debug"; break;
+                        case _EVENT_LOG_MSG: s = "msg"; break;
+                        case _EVENT_LOG_WARN: s = "warn"; break;
+                        case _EVENT_LOG_ERR: s = "error"; break;
+                        default: s = "?"; break; /* never reached */
                     }
                     
-                    static FILE *logfile = NULL;
-                    static void write_to_file_cb(int severity, const char *msg)
-                    {
-                        const char *s;
-                        if (!logfile)
-                            return;
+                    fprintf(logfile, "[%s] %s\n", s, msg);
+                }
 
-                        switch (severity) 
-                        {
-                            case _EVENT_LOG_DEBUG: s = "debug"; break;
-                            case _EVENT_LOG_MSG: s = "msg"; break;
-                            case _EVENT_LOG_WARN: s = "warn"; break;
-                            case _EVENT_LOG_ERR: s = "error"; break;
-                            default: s = "?"; break; /* never reached */
-                        }
-                        
-                        fprintf(logfile, "[%s] %s\n", s, msg);
-                    }
+                /* 关闭Libevent中的所有日志记录。 */
+                void suppress_logging(void)
+                {
+                    event_set_log_callback(discard_cb);
+                }
 
-                    /* 关闭Libevent中的所有日志记录。 */
-                    void suppress_logging(void)
-                    {
-                        event_set_log_callback(discard_cb);
-                    }
+                /* 将所有Libevent日志消息重定向到C stdio文件“f”。 */
+                void set_logfile(FILE *f)
+                {
+                    logfile = f;
+                    event_set_log_callback(write_to_file_cb);
+                }
+                ```
 
-                    /* 将所有Libevent日志消息重定向到C stdio文件“f”。 */
-                    void set_logfile(FILE *f)
-                    {
-                        logfile = f;
-                        event_set_log_callback(write_to_file_cb);
-                    }
-                    ```
-
-                在用户提供的event_log_cb 回调函数中调用libevent 函数是不安全的。
-                比如说，如果试图编写一个使用bufferevent 将警告信息发送给某个套接字的日志回
-                调函数，可能会遇到奇怪 而难以诊断的bug。未来版本libevent 的某些函数可能会
-                移除这个限制。
-                这个函数在中声明，在libevent 1.0c 版本中首次出现。
+            在用户提供的event_log_cb 回调函数中调用libevent 函数是不安全的。
+            比如说，如果试图编写一个使用bufferevent 将警告信息发送给某个套接字的日志回
+            调函数，可能会遇到奇怪 而难以诊断的bug。未来版本libevent 的某些函数可能会
+            移除这个限制。
+            这个函数在中声明，在libevent 1.0c 版本中首次出现。
 
 
         * 致命错误回调设置
@@ -1737,7 +1754,7 @@ sudo make install
 
                     if (debug_mode)
                         event_enable_debug_mode();
-                        
+
                     base = event_base_new();
                     event_on_heap = event_new(base, fd1, EV_READ, cb, NULL);
                     event_assign(&event_on_stack, base, fd2, EV_READ, cb, &event_on_stack);
@@ -1748,3 +1765,152 @@ sudo make install
                     event_base_free(base);
                 }
                 ```
+    <h2 id="8">8. 实战例子</h2>
+    
+    实战例子:
+
+        ```
+        #include <string.h>
+        #include <errno.h>
+        #include <stdio.h>
+        #include <signal.h>
+
+        #ifndef WIN32
+        #include <netinet/in.h>
+        #ifdef _XOPEN_SOURCE_EXTENDED
+        #include <arpa/inet.h>
+        #endif
+        #include <sys/socket.h>
+        #endif
+
+
+        #include <event2/bufferevent.h>
+        #include <event2/buffer.h>
+        #include <event2/listener.h>
+        #include <event2/util.h>
+        #include <event2/event.h>
+
+        static const char MESSAGE[] = "Hello World!\n";
+
+        static const int PORT = 9995;
+
+        static void listener_cb(struct evconnlistener *, evutil_socket_t, struct sockaddr *, int socklen, void *);
+
+        static void conn_writecb(struct bufferevent *, void *);
+        static void conn_eventcb(struct bufferevent *, short, void *);
+        static void signal_cb(evutil_socket_t, short, void *);
+
+
+        int main(int argc, char* argv[])
+        {
+            struct event_base *base;
+            struct evconnlistener *listener;
+            struct event *signal_event;
+            struct sockaddr_in sin;
+
+        #ifdef WIN32
+            WSDATA wsa_data;
+            WSAStartup(0x0201, &wsa_data);
+        #endif
+
+            //创建evnet_base结构体
+            base = event_base_new();
+            if(!base)
+            {
+                fprintf(stderr, "Could not initialize libevent!\n");
+                return 1;
+            }
+
+            memset(&sin, 0, sizeof(sin));
+            sin.sin_family = AF_INET;
+            sin.sin_port = htons(PORT);
+            //创建连接侦听器
+            listener = evconnlistener_new_bind(base, listener_cb, (void *)base,
+                    LEV_OPT_REUSEABLE | LEV_OPT_CLOSE_ON_FREE, -1, 
+                    (struct sockaddr *)&sin, sizeof(sin));
+
+            if(!listener)
+            {
+                fprintf(stderr, "Could not create a listener!\n");
+                return 1;
+            }
+
+            //信号
+            signal_event = evsignal_new(base, SIGINT, signal_cb, (void *)base);
+
+            if(!signal_event || event_add(signal_event, NULL) < 0)
+            {
+                fprintf(stderr, "Could not create/add a signal event!\n");
+                
+                return 1;
+            }
+            event_base_dispatch(base);
+
+            evconnlistener_free(listener);
+            event_free(signal_event);
+            event_base_free(base);
+
+            printf("done\n");
+            return 0;
+        }
+
+
+        static void listener_cb(struct evconnlistener *listener, evutil_socket_t fd, struct sockaddr *sa, int socklen, void *user_data)
+        {
+            struct event_base *base = user_data;
+            struct bufferevent *bev;
+
+            bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+
+            if(!bev)
+            {
+                fprintf(stderr, "Error constructing bufferevent!");
+
+                event_base_loopbreak(base);
+                return;
+            }
+
+            bufferevent_setcb(bev, NULL, conn_writecb, conn_eventcb, NULL);
+            bufferevent_enable(bev, EV_WRITE);
+            bufferevent_disable(bev, EV_READ);
+
+            bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
+
+        }
+
+        static void conn_writecb(struct bufferevent *bev, void *user_data)
+        {
+            struct evbuffer *output = bufferevent_get_output(bev);
+            if(evbuffer_get_length(output) == 0)
+            {
+                printf("flushed answer\n");
+                bufferevent_free(bev);
+            }
+        }
+
+        static void conn_eventcb(struct bufferevent *bev, short events, void *user_data)
+        {
+            if(events & BEV_EVENT_EOF)
+            {
+                printf("Connection closed.\n");
+            }
+            else if(events & BEV_EVENT_ERROR)
+            {
+                printf("Got an error on the connecetion: %s\n",
+                        strerror(errno));
+            }
+
+            bufferevent_free(bev);
+        }
+
+        static void signal_cb(evutil_socket_t sig, short events, void *user_data)
+        {
+            struct event_base *base = user_data;
+            struct timeval delay = {2, 0};
+
+            printf("Caught an interrupt signal; exiting cleanly in two seconds.\n");
+
+            event_base_loopexit(base, &delay);
+        }
+        ```
+
