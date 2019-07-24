@@ -1860,6 +1860,7 @@ sudo make install
             struct event_base *base = user_data;
             struct bufferevent *bev;
 
+            //创建基于套接字bufferevnt
             bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 
             if(!bev)
@@ -1870,14 +1871,16 @@ sudo make install
                 return;
             }
 
+            //修改bufferevent的回调。
             bufferevent_setcb(bev, NULL, conn_writecb, conn_eventcb, NULL);
-            bufferevent_enable(bev, EV_WRITE);
-            bufferevent_disable(bev, EV_READ);
+            bufferevent_enable(bev, EV_WRITE);  //启用写事件
+            bufferevent_disable(bev, EV_READ);  //关闭读事件
 
-            bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
+            bufferevent_write(bev, MESSAGE, strlen(MESSAGE)); //发送数据
 
         }
 
+        //写事件回调
         static void conn_writecb(struct bufferevent *bev, void *user_data)
         {
             struct evbuffer *output = bufferevent_get_output(bev);
